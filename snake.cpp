@@ -1,16 +1,20 @@
 #include <iostream>
-#include <conio.h>   // For _kbhit() and _getch()
-#include <windows.h> // For Sleep()
-
+#include <conio.h>
+#include <windows.h>
+#include <vector>
+#include <cstdlib>
+#include <ctime>
 using namespace std;
 
-bool gameOver;
 const int width = 40;
 const int height = 20;
-int x, y, fruitX, fruitY, score;
-int tailX[100], tailY[100]; // Snake tail coords
-int nTail;
-enum eDirection
+
+struct Point
+{
+    int x, y;
+};
+
+enum Direction
 {
     STOP = 0,
     LEFT,
@@ -18,70 +22,77 @@ enum eDirection
     UP,
     DOWN
 };
-eDirection dir;
+Direction dir;
 
-void Setup()
+vector<Point> snake; // Snake body
+Point fruit;
+int score = 0;
+bool gameOver = false;
+
+// Function to check if a point is on the snake
+bool isOnSnake(int x, int y)
 {
-    gameOver = false;
-    dir = STOP;
-    x = width / 2;
-    y = height / 2;
-    fruitX = rand() % width;
-    fruitY = rand() % height;
-    score = 0;
+    for (auto s : snake)
+    {
+        if (s.x == x && s.y == y)
+            return true;
+    }
+    return false;
 }
 
-void Draw()
+// Improved fruit spawning algorithm
+void spawnFruit()
 {
-    system("cls"); // Clear screen
+    do
+    {
+        fruit.x = rand() % width;
+        fruit.y = rand() % height;
+    } while (isOnSnake(fruit.x, fruit.y));
+}
 
-    // Top border
+// Draw the board
+void draw()
+{
+    system("cls");
     for (int i = 0; i < width + 2; i++)
         cout << "#";
     cout << endl;
 
-    // Game area
-    for (int i = 0; i < height; i++)
+    for (int y = 0; y < height; y++)
     {
-        for (int j = 0; j < width; j++)
+        cout << "#";
+        for (int x = 0; x < width; x++)
         {
-            if (j == 0)
-                cout << "#"; // Left wall
-
-            if (i == y && j == x)
-                cout << "O"; // Snake head
-            else if (i == fruitY && j == fruitX)
+            if (x == snake[0].x && y == snake[0].y)
+                cout << "O"; // Head
+            else if (x == fruit.x && y == fruit.y)
                 cout << "F"; // Fruit
             else
             {
-                bool print = false;
-                for (int k = 0; k < nTail; k++)
+                bool printed = false;
+                for (size_t k = 1; k < snake.size(); k++)
                 {
-                    if (tailX[k] == j && tailY[k] == i)
+                    if (snake[k].x == x && snake[k].y == y)
                     {
-                        cout << "o"; // Snake tail
-                        print = true;
+                        cout << "o"; // Body
+                        printed = true;
+                        break;
                     }
                 }
-                if (!print)
+                if (!printed)
                     cout << " ";
             }
-
-            if (j == width - 1)
-                cout << "#"; // Right wall
         }
-        cout << endl;
+        cout << "#" << endl;
     }
 
-    // Bottom border
     for (int i = 0; i < width + 2; i++)
         cout << "#";
-    cout << endl;
-
-    cout << "Score: " << score << endl;
+    cout << "\nScore: " << score << endl;
 }
 
-void Input()
+// Input handling
+void input()
 {
     if (_kbhit())
     {
@@ -101,77 +112,79 @@ void Input()
             break;
         case 'x':
             gameOver = true;
-            break; // Exit
+            break;
         }
     }
 }
 
-void Logic()
+// Logic update
+void logic()
 {
-    int prevX = tailX[0];
-    int prevY = tailY[0];
-    int prev2X, prev2Y;
-    tailX[0] = x;
-    tailY[0] = y;
+    Point prev = snake[0];
+    Point prev2;
 
-    for (int i = 1; i < nTail; i++)
-    {
-        prev2X = tailX[i];
-        prev2Y = tailY[i];
-        tailX[i] = prevX;
-        tailY[i] = prevY;
-        prevX = prev2X;
-        prevY = prev2Y;
-    }
-
+    // Move head
     switch (dir)
     {
     case LEFT:
-        x--;
+        snake[0].x--;
         break;
     case RIGHT:
-        x++;
+        snake[0].x++;
         break;
     case UP:
-        y--;
+        snake[0].y--;
         break;
     case DOWN:
-        y++;
+        snake[0].y++;
         break;
     default:
         break;
     }
 
-    // Check if snake hits wall
-    if (x >= width || x < 0 || y >= height || y < 0)
+    // Move body
+    for (size_t i = 1; i < snake.size(); i++)
+    {
+        prev2 = snake[i];
+        snake[i] = prev;
+        prev = prev2;
+    }
+
+    // Collision with walls
+    if (snake[0].x < 0 || snake[0].x >= width || snake[0].y < 0 || snake[0].y >= height)
         gameOver = true;
 
-    // Check if snake hits itself
-    for (int i = 0; i < nTail; i++)
+    // Collision with self
+    for (size_t i = 1; i < snake.size(); i++)
     {
-        if (tailX[i] == x && tailY[i] == y)
+        if (snake[i].x == snake[0].x && snake[i].y == snake[0].y)
             gameOver = true;
     }
 
-    // Check if fruit is eaten
-    if (x == fruitX && y == fruitY)
+    // Eating fruit
+    if (snake[0].x == fruit.x && snake[0].y == fruit.y)
     {
         score += 10;
-        fruitX = rand() % width;
-        fruitY = rand() % height;
-        nTail++;
+        snake.push_back({-1, -1}); // Extend snake
+        spawnFruit();
     }
 }
 
 int main()
 {
-    Setup();
+    srand(time(0));
+    dir = STOP;
+    snake.push_back({width / 2, height / 2});
+    spawnFruit();
+
     while (!gameOver)
     {
-        Draw();
-        Input();
-        Logic();
+        draw();
+        input();
+        logic();
         Sleep(100); // Control speed
     }
+
+    cout << "Game Over! Final Score: " << score << endl;
     return 0;
 }
