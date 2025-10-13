@@ -24,12 +24,15 @@ enum Direction
 };
 Direction dir;
 
-vector<Point> snake; // Snake body
+vector<Point> snake;
 Point fruit;
 int score = 0;
 bool gameOver = false;
 
-// Function to check if a point is on the snake
+// Game speed control
+int speed = 100;
+
+// Check if point is on snake
 bool isOnSnake(int x, int y)
 {
     for (auto s : snake)
@@ -40,7 +43,7 @@ bool isOnSnake(int x, int y)
     return false;
 }
 
-// Improved fruit spawning algorithm
+// Spawn fruit avoiding snake body
 void spawnFruit()
 {
     do
@@ -64,9 +67,9 @@ void draw()
         for (int x = 0; x < width; x++)
         {
             if (x == snake[0].x && y == snake[0].y)
-                cout << "O"; // Head
+                cout << "O";
             else if (x == fruit.x && y == fruit.y)
-                cout << "F"; // Fruit
+                cout << "F";
             else
             {
                 bool printed = false;
@@ -74,7 +77,7 @@ void draw()
                 {
                     if (snake[k].x == x && snake[k].y == y)
                     {
-                        cout << "o"; // Body
+                        cout << "o";
                         printed = true;
                         break;
                     }
@@ -91,24 +94,28 @@ void draw()
     cout << "\nScore: " << score << endl;
 }
 
-// Input handling
 void input()
 {
     if (_kbhit())
     {
-        switch (_getch())
+        char key = _getch();
+        switch (key)
         {
         case 'a':
-            dir = LEFT;
+            if (dir != RIGHT)
+                dir = LEFT;
             break;
         case 'd':
-            dir = RIGHT;
+            if (dir != LEFT)
+                dir = RIGHT;
             break;
         case 'w':
-            dir = UP;
+            if (dir != DOWN)
+                dir = UP;
             break;
         case 's':
-            dir = DOWN;
+            if (dir != UP)
+                dir = DOWN;
             break;
         case 'x':
             gameOver = true;
@@ -165,8 +172,11 @@ void logic()
     if (snake[0].x == fruit.x && snake[0].y == fruit.y)
     {
         score += 10;
-        snake.push_back({-1, -1}); // Extend snake
+        snake.push_back({-1, -1});
         spawnFruit();
+
+        if (speed > 20)
+            speed -= 5; // Speed up the game gradually
     }
 }
 
@@ -182,7 +192,7 @@ int main()
         draw();
         input();
         logic();
-        Sleep(100); // Control speed
+        Sleep(speed);
     }
 
     cout << "Game Over! Final Score: " << score << endl;
