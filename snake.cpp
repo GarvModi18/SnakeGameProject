@@ -4,197 +4,176 @@
 #include <vector>
 #include <cstdlib>
 #include <ctime>
+#include <fstream>   // For high score saving/loading
 using namespace std;
 
 const int width = 40;
 const int height = 20;
 
-struct Point
-{
+struct Point {
     int x, y;
 };
 
-enum Direction
-{
-    STOP = 0,
-    LEFT,
-    RIGHT,
-    UP,
-    DOWN
-};
+enum Direction { STOP = 0, LEFT, RIGHT, UP, DOWN };
 Direction dir;
 
 vector<Point> snake;
 Point fruit;
 int score = 0;
+int highScore = 0;
 bool gameOver = false;
 
-// Game speed control
+// Game speed
 int speed = 100;
 
-// Check if point is on snake
-bool isOnSnake(int x, int y)
-{
-    for (auto s : snake)
-    {
+// Utility — check if a point is on the snake
+bool isOnSnake(int x, int y) {
+    for (auto s : snake) {
         if (s.x == x && s.y == y)
             return true;
     }
     return false;
 }
 
-// Spawn fruit avoiding snake body
-void spawnFruit()
-{
-    do
-    {
+// Load high score from file
+void loadHighScore() {
+    ifstream file("highscore.txt");
+    if (file.is_open()) {
+        file >> highScore;
+        file.close();
+    } else {
+        highScore = 0;
+    }
+}
+
+// Save high score to file
+void saveHighScore() {
+    ofstream file("highscore.txt");
+    if (file.is_open()) {
+        file << highScore;
+        file.close();
+    }
+}
+
+// Improved fruit spawning (avoids snake)
+void spawnFruit() {
+    do {
         fruit.x = rand() % width;
         fruit.y = rand() % height;
     } while (isOnSnake(fruit.x, fruit.y));
 }
 
 // Draw the board
-void draw()
-{
+void draw() {
     system("cls");
-    for (int i = 0; i < width + 2; i++)
-        cout << "#";
+    for (int i = 0; i < width + 2; i++) cout << "#";
     cout << endl;
 
-    for (int y = 0; y < height; y++)
-    {
+    for (int y = 0; y < height; y++) {
         cout << "#";
-        for (int x = 0; x < width; x++)
-        {
+        for (int x = 0; x < width; x++) {
             if (x == snake[0].x && y == snake[0].y)
                 cout << "O";
             else if (x == fruit.x && y == fruit.y)
                 cout << "F";
-            else
-            {
+            else {
                 bool printed = false;
-                for (size_t k = 1; k < snake.size(); k++)
-                {
-                    if (snake[k].x == x && snake[k].y == y)
-                    {
+                for (size_t k = 1; k < snake.size(); k++) {
+                    if (snake[k].x == x && snake[k].y == y) {
                         cout << "o";
                         printed = true;
                         break;
                     }
                 }
-                if (!printed)
-                    cout << " ";
+                if (!printed) cout << " ";
             }
         }
         cout << "#" << endl;
     }
 
-    for (int i = 0; i < width + 2; i++)
-        cout << "#";
-    cout << "\nScore: " << score << endl;
+    for (int i = 0; i < width + 2; i++) cout << "#";
+    cout << "\nScore: " << score << "    High Score: " << highScore << endl;
 }
 
-void input()
-{
-    if (_kbhit())
-    {
+// Smooth movement with restricted reversals
+void input() {
+    if (_kbhit()) {
         char key = _getch();
-        switch (key)
-        {
-        case 'a':
-            if (dir != RIGHT)
-                dir = LEFT;
-            break;
-        case 'd':
-            if (dir != LEFT)
-                dir = RIGHT;
-            break;
-        case 'w':
-            if (dir != DOWN)
-                dir = UP;
-            break;
-        case 's':
-            if (dir != UP)
-                dir = DOWN;
-            break;
-        case 'x':
-            gameOver = true;
-            break;
+        switch (key) {
+            case 'a': if (dir != RIGHT) dir = LEFT; break;
+            case 'd': if (dir != LEFT) dir = RIGHT; break;
+            case 'w': if (dir != DOWN) dir = UP; break;
+            case 's': if (dir != UP) dir = DOWN; break;
+            case 'x': gameOver = true; break;
         }
     }
 }
 
-// Logic update
-void logic()
-{
+// Logic + collisions
+void logic() {
     Point prev = snake[0];
     Point prev2;
 
     // Move head
-    switch (dir)
-    {
-    case LEFT:
-        snake[0].x--;
-        break;
-    case RIGHT:
-        snake[0].x++;
-        break;
-    case UP:
-        snake[0].y--;
-        break;
-    case DOWN:
-        snake[0].y++;
-        break;
-    default:
-        break;
+    switch (dir) {
+        case LEFT: snake[0].x--; break;
+        case RIGHT: snake[0].x++; break;
+        case UP: snake[0].y--; break;
+        case DOWN: snake[0].y++; break;
+        default: break;
     }
 
     // Move body
-    for (size_t i = 1; i < snake.size(); i++)
-    {
+    for (size_t i = 1; i < snake.size(); i++) {
         prev2 = snake[i];
         snake[i] = prev;
         prev = prev2;
     }
 
-    // Collision with walls
+    // Wall collision
     if (snake[0].x < 0 || snake[0].x >= width || snake[0].y < 0 || snake[0].y >= height)
         gameOver = true;
 
-    // Collision with self
-    for (size_t i = 1; i < snake.size(); i++)
-    {
+    // Self collision
+    for (size_t i = 1; i < snake.size(); i++) {
         if (snake[i].x == snake[0].x && snake[i].y == snake[0].y)
             gameOver = true;
     }
 
-    // Eating fruit
-    if (snake[0].x == fruit.x && snake[0].y == fruit.y)
-    {
+    // Fruit eaten
+    if (snake[0].x == fruit.x && snake[0].y == fruit.y) {
         score += 10;
         snake.push_back({-1, -1});
         spawnFruit();
 
-        if (speed > 20)
-            speed -= 5; // Speed up the game gradually
+        if (speed > 20) speed -= 5; // speed up
+
+        // Update high score
+        if (score > highScore) {
+            highScore = score;
+            saveHighScore();
+        }
     }
 }
 
-int main()
-{
+int main() {
     srand(time(0));
+    loadHighScore();
     dir = STOP;
     snake.push_back({width / 2, height / 2});
     spawnFruit();
 
-    while (!gameOver)
-    {
+    while (!gameOver) {
         draw();
         input();
         logic();
         Sleep(speed);
     }
 
-    cout << "Game Over! Final Score: " << score << endl;
+    system("cls");
+    cout << "\n===== GAME OVER =====" << endl;
+    cout << "Your Final Score: " << score << endl;
+    cout << "High Score: " << highScore << endl;
+    cout << "=====================\n";
     return 0;
 }
