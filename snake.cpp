@@ -1,11 +1,11 @@
 #include <iostream>
 #include <vector>
-#include <windows.h>    // For Sleep(), SetConsoleCursorPosition, SetConsoleTextAttribute
-#include <ctime>        // For time() to seed rand()
-#include <cstdio>       // For standard I/O
-#include <conio.h>      // For kbhit() and getch()
-#include <fstream>      // NEW: For file operations (reading/writing high score)
-#include <string>       // For string manipulation (optional but good practice)
+#include <windows.h>    
+#include <ctime>        
+#include <cstdio>       
+#include <conio.h>      
+#include <fstream>      
+#include <string>       
 
 using namespace std;
 
@@ -16,7 +16,7 @@ enum ConsoleColor {
     RED = 12, MAGENTA = 13, YELLOW = 14, WHITE = 15
 };
 
-// --- Console Utility Functions ---
+// --- Console Utility Functions (Unchanged) ---
 void SetColor(ConsoleColor textColor, ConsoleColor bgColor = BLACK) {
     SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), (WORD)((bgColor << 4) | textColor));
 }
@@ -33,44 +33,44 @@ bool gameOver;
 const int width = 40; 
 const int height = 20;
 int headX, headY, fruitX, fruitY, score;
+// NEW SPECIAL FRUIT VARIABLES
+int specialFruitX, specialFruitY; // Coordinates for the Special Fruit (Blue Diamond)
+bool isSpecialFruitOnScreen = false;
+const int SPECIAL_FRUIT_SPAWN_CHANCE = 10; // 1 in 10 chance on fruit consumption
+
+// NEW EFFECT VARIABLES
+bool isSlowTimeActive = false;
+int slowTimeDuration = 0; // Frames remaining for slow time
+int originalGameSpeed = 120; // Store the base speed
+const int SLOW_TIME_FRAMES = 150; // Effect lasts for 150 frames (approx 18 seconds)
+
 int tailX[1000], tailY[1000];
 int nTail;
 int gameSpeed = 120;
 int frameCount = 0; 
-int highScore = 0; // NEW: Global High Score variable
+int highScore = 0; 
 
 enum eDirection { STOP = 0, LEFT, RIGHT, UP, DOWN };
 eDirection dir;
 eDirection lastDir; 
 int lastTailX, lastTailY;
 
-// --- FILE I/O FUNCTIONS ---
-
+// --- FILE I/O FUNCTIONS (Unchanged) ---
 void LoadHighScore() {
     ifstream fileIn("highscore.txt");
-    if (fileIn.is_open()) {
-        fileIn >> highScore;
-        fileIn.close();
-    } else {
-        // If file doesn't exist, high score remains 0 (initialized globally)
-        highScore = 0;
-    }
+    if (fileIn.is_open()) { fileIn >> highScore; fileIn.close(); } else { highScore = 0; }
 }
 
 void SaveHighScore() {
     ofstream fileOut("highscore.txt");
-    if (fileOut.is_open()) {
-        fileOut << highScore; // Save the updated high score
-        fileOut.close();
-    }
+    if (fileOut.is_open()) { fileOut << highScore; fileOut.close(); }
 }
-
 
 // --- Game Logic and Drawing ---
 
 void Setup() {
     SetConsoleOutputCP(65001); 
-    LoadHighScore(); // NEW: Load high score before starting the game
+    LoadHighScore(); 
     
     srand(static_cast<unsigned int>(time(0))); 
     gameOver = false;
@@ -82,10 +82,15 @@ void Setup() {
     fruitY = rand() % height;
     score = 0;
     nTail = 0;
-    gameSpeed = 120; 
+    gameSpeed = originalGameSpeed; // Start at base speed
     frameCount = 0; 
     lastTailX = -1; 
     lastTailY = -1;
+
+    // Reset special effects
+    isSpecialFruitOnScreen = false;
+    isSlowTimeActive = false;
+    slowTimeDuration = 0;
 
     CONSOLE_CURSOR_INFO cursorInfo;
     GetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &cursorInfo);
@@ -126,7 +131,8 @@ void Draw() {
     if (frameCount % 2 == 0) { 
         SetColor(GREEN, BLACK); 
     } else {
-        SetColor(YELLOW, BLACK); 
+        // Change to CYAN when slow time is active for visual feedback
+        if (isSlowTimeActive) SetColor(CYAN, BLACK); else SetColor(YELLOW, BLACK);
     }
     cout << headChar;
     frameCount++; 
@@ -139,16 +145,32 @@ void Draw() {
     }
     ResetColor();
 
-    // 4. Draw real food (Heart symbol)
+    // 4. Draw Standard Food (Heart symbol)
     GotoXY(fruitX + 1, fruitY + 1); 
     SetColor(RED);
     cout << "♥"; 
     ResetColor();
 
-    // 5. Update Score and High Score
+    // 5. Draw Special Food (Blue Diamond)
+    if (isSpecialFruitOnScreen) {
+        GotoXY(specialFruitX + 1, specialFruitY + 1);
+        SetColor(BLUE);
+        cout << "♦"; // Blue Diamond for special fruit
+        ResetColor();
+    }
+
+    // 6. Update Score and High Score & Effect Status
     GotoXY(0, height + 2); 
     SetColor(YELLOW);
-    cout << "Score: " << score << " | High Score: " << highScore << " | Speed: " << (150 - gameSpeed) / 10 + 1 << "  "; 
+    cout << "Score: " << score << " | High Score: " << highScore;
+    cout << " | Speed: " << (originalGameSpeed - gameSpeed) / 10 + 1;
+
+    // Display Status of Active Effect
+    if (isSlowTimeActive) {
+        SetColor(CYAN);
+        cout << " | STATUS: SLOW TIME (" << slowTimeDuration / (1000 / originalGameSpeed) << "s)";
+    }
+    cout << "  "; // Padding
     ResetColor();
 }
 
@@ -184,9 +206,56 @@ void Input() {
     }
 }
 
+void SpawnSpecialFruit() {
+    if (isSpecialFruitOnScreen) return; // Only one special fruit at a time
+
+    // 1 in SPECIAL_FRUIT_SPAWN_CHANCE chance to spawn
+    if (rand() % SPECIAL_FRUIT_SPAWN_CHANCE == 0) { 
+        isSpecialFruitOnScreen = true;
+        bool validPos;
+        do {
+            validPos = true;
+            specialFruitX = rand() % width;
+            specialFruitY = rand() % height;
+            // Check collision with head, body, and regular fruit
+            if ((specialFruitX == headX && specialFruitY == headY) ||
+                (specialFruitX == fruitX && specialFruitY == fruitY)) 
+                validPos = false;
+            for (int i = 0; i < nTail; i++) {
+                if (tailX[i] == specialFruitX && tailY[i] == specialFruitY) {
+                    validPos = false;
+                    break;
+                }
+            }
+        } while (!validPos);
+    }
+}
+
+void ApplySlowTimeEffect() {
+    isSlowTimeActive = true;
+    slowTimeDuration = SLOW_TIME_FRAMES;
+    gameSpeed = originalGameSpeed + 80; // Significantly slow down the game
+}
+
 void Logic() {
     lastDir = dir; 
 
+    // --- EFFECT MANAGEMENT ---
+    if (isSlowTimeActive) {
+        slowTimeDuration--;
+        if (slowTimeDuration <= 0) {
+            isSlowTimeActive = false;
+            gameSpeed = originalGameSpeed; // Reset to original speed
+        }
+    }
+    // Update originalGameSpeed based on current score (for non-effect base speed)
+    originalGameSpeed = max(120 - (score / 50) * 10, 10);
+    if (!isSlowTimeActive) {
+        gameSpeed = originalGameSpeed; // Apply normal speed if effect is off
+    }
+    
+    // --- MOVEMENT & COLLISION (Unchanged) ---
+    // ... (Tail shifting logic remains the same) ...
     if (nTail > 0) {
         lastTailX = tailX[nTail - 1];
         lastTailY = tailY[nTail - 1];
@@ -194,8 +263,6 @@ void Logic() {
         lastTailX = headX; 
         lastTailY = headY;
     }
-
-    // Shift the tail segments forward 
     for (int i = nTail - 1; i > 0; i--) {
         tailX[i] = tailX[i - 1];
         tailY[i] = tailY[i - 1];
@@ -205,62 +272,66 @@ void Logic() {
         tailY[0] = headY;
     }
 
-    // Move the snake head
     switch (dir) {
-    case LEFT: headX--; break;
-    case RIGHT: headX++; break;
-    case UP: headY--; break;
-    case DOWN: headY++; break;
-    case STOP: 
-        lastTailX = -1; 
-        lastTailY = -1; 
-        break;
+    case LEFT: headX--; break; case RIGHT: headX++; break; 
+    case UP: headY--; break; case DOWN: headY++; break;
+    case STOP: lastTailX = -1; lastTailY = -1; break;
     }
     
-    // Check for game over conditions
     bool collided = false;
     if (headX < 0 || headX >= width || headY < 0 || headY >= height)
         collided = true;
-
     for (int i = 0; i < nTail; i++) {
-        if (tailX[i] == headX && tailY[i] == headY)
-            collided = true;
+        if (tailX[i] == headX && tailY[i] == headY) collided = true;
     }
 
     if (collided) {
         gameOver = true;
-        // NEW: Check and save high score upon death
-        if (score > highScore) {
-            highScore = score;
-            SaveHighScore();
-        }
+        if (score > highScore) { highScore = score; SaveHighScore(); }
     }
 
-    // Fruit Check
+    // --- FRUIT CHECKS ---
+    
+    // 1. Regular Fruit Check
     if (headX == fruitX && headY == fruitY) {
         score += 10;
         nTail++; 
-        if (score % 50 == 0 && gameSpeed > 10) { 
-            gameSpeed -= 10; 
-        }
         
-        bool validFruitPos;
+        // Try to spawn special fruit
+        SpawnSpecialFruit();
+
+        // Spawn new regular fruit
+        bool validPos;
         do {
-            validFruitPos = true;
+            validPos = true;
             fruitX = rand() % width;
             fruitY = rand() % height;
-            if (fruitX == headX && fruitY == headY) validFruitPos = false;
+            // Also check collision with special fruit position
+            if ((fruitX == specialFruitX && fruitY == specialFruitY) && isSpecialFruitOnScreen) validPos = false;
+            if (fruitX == headX && fruitY == headY) validPos = false;
             for (int i = 0; i < nTail; i++) {
-                if (tailX[i] == fruitX && tailY[i] == fruitY) {
-                    validFruitPos = false;
-                    break;
-                }
+                if (tailX[i] == fruitX && tailY[i] == fruitY) { validPos = false; break; }
             }
-        } while (!validFruitPos);
+        } while (!validPos);
+    }
+
+    // 2. Special Fruit Check
+    if (isSpecialFruitOnScreen && headX == specialFruitX && headY == specialFruitY) {
+        // Remove the fruit and apply effect
+        isSpecialFruitOnScreen = false;
+        ApplySlowTimeEffect();
+
+        // Erase the fruit from the screen immediately (important for smooth removal)
+        GotoXY(specialFruitX + 1, specialFruitY + 1);
+        cout << " "; 
+        
+        // Reset coordinates to avoid accidental double-eating
+        specialFruitX = -1;
+        specialFruitY = -1;
     }
 }
 
-// --- Main Program ---
+// --- Main Program (Unchanged) ---
 int main() {
     Setup();
     while (!gameOver) {
@@ -280,7 +351,6 @@ int main() {
     GotoXY(width / 2 - 8, height / 2);
     cout << "Final Score: " << score;
     
-    // NEW: Displaying the FINAL High Score
     if (score == highScore && score > 0) {
         SetColor(GREEN);
         GotoXY(width / 2 - 12, height / 2 + 1);
