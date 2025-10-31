@@ -29,7 +29,9 @@ enum ConsoleColor
     YELLOW = 14,
     WHITE = 15
 };
-bool borderWrap = false; // New feature flag
+bool borderWrap = false;  // New feature flag
+bool rainbowTrail = true; // Toggle color-cycling tail
+int rainbowPhase = 0;
 
 // Console Utility Functions
 void SetColor(ConsoleColor textColor, ConsoleColor bgColor = BLACK)
@@ -58,9 +60,9 @@ const int SPECIAL_FRUIT_SPAWN_CHANCE = 10; // 1 in 10 chance on fruit consumptio
 
 // NEW EFFECT VARIABLES
 bool isSlowTimeActive = false;
-int slowTimeDuration = 0;         // Frames remaining for slow time
-int originalGameSpeed = 120;      // Store the base speed
-const int SLOW_TIME_FRAMES = 150; // Effect lasts for 150 frames (approx 18 seconds)
+int slowTimeDuration = 0;        // Frames remaining for slow time
+int originalGameSpeed = 100;     // Store the base speed
+const int SLOW_TIME_FRAMES = 83; // Effect lasts for 83 frames (approx 10 seconds)
 
 int tailX[1000], tailY[1000];
 int nTail;
@@ -199,9 +201,44 @@ void Draw()
     // 3. Draw new segment of Tail
     if (nTail > 0)
     {
-        GotoXY(tailX[0] + 1, tailY[0] + 1);
-        SetColor(DARKGREEN);
-        cout << "o";
+        // Rainbow trail effect for all tail segments
+        for (int i = 0; i < nTail; i++)
+        {
+            GotoXY(tailX[i] + 1, tailY[i] + 1);
+
+            if (rainbowTrail)
+            {
+                int colorCycle = (rainbowPhase + i) % 6;
+                switch (colorCycle)
+                {
+                case 0:
+                    SetColor(GREEN);
+                    break;
+                case 1:
+                    SetColor(CYAN);
+                    break;
+                case 2:
+                    SetColor(BLUE);
+                    break;
+                case 3:
+                    SetColor(MAGENTA);
+                    break;
+                case 4:
+                    SetColor(RED);
+                    break;
+                case 5:
+                    SetColor(YELLOW);
+                    break;
+                }
+            }
+            else
+            {
+                SetColor(DARKGREEN);
+            }
+            cout << "o";
+        }
+        ResetColor();
+        rainbowPhase = (rainbowPhase + 1) % 6;
     }
     ResetColor();
 
@@ -358,8 +395,7 @@ void Logic()
         gameSpeed = originalGameSpeed; // Apply normal speed if effect is off
     }
 
-    //  MOVEMENT & COLLISION (Unchanged)
-    // ... (Tail shifting logic remains the same) ...
+    //  MOVEMENT & COLLISION
     if (nTail > 0)
     {
         lastTailX = tailX[nTail - 1];
