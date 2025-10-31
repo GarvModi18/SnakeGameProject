@@ -53,20 +53,22 @@ const int width = 40;
 const int height = 20;
 int headX, headY, fruitX, fruitY, score;
 
-// NEW SPECIAL FRUIT VARIABLES
+//  SPECIAL FRUIT VARIABLES
 int specialFruitX, specialFruitY; // Coordinates for the Special Fruit (Blue Diamond)
 bool isSpecialFruitOnScreen = false;
-const int SPECIAL_FRUIT_SPAWN_CHANCE = 10; // 1 in 10 chance on fruit consumption
+const int SPECIAL_FRUIT_SPAWN_CHANCE = 5; // 1 in 5 chance on fruit consumption
+int fruitsEaten = 0;                      // Track how many regular fruits eaten
 
-// NEW EFFECT VARIABLES
+//  SPEED VARIABLES
 bool isSlowTimeActive = false;
 int slowTimeDuration = 0;        // Frames remaining for slow time
-int originalGameSpeed = 100;     // Store the base speed
+int originalGameSpeed = 110;     // Store the base speed
 const int SLOW_TIME_FRAMES = 83; // Effect lasts for 83 frames (approx 10 seconds)
+int speedLevel = 1;
 
 int tailX[1000], tailY[1000];
 int nTail;
-int gameSpeed = 120;
+int gameSpeed = 130;
 int frameCount = 0;
 int highScore = 0;
 
@@ -124,6 +126,7 @@ void Setup()
     fruitY = rand() % height;
     score = 0;
     nTail = 0;
+    speedLevel = 1;
     gameSpeed = originalGameSpeed; // Start at base speed
     frameCount = 0;
     lastTailX = -1;
@@ -261,7 +264,7 @@ void Draw()
     GotoXY(0, height + 2);
     SetColor(YELLOW);
     cout << "Score: " << score << " | High Score: " << highScore;
-    cout << " | Speed: " << (originalGameSpeed - gameSpeed) / 10 + 1;
+    cout << " | Speed Level: " << speedLevel;
 
     // Display Status of Active Effect
     if (isSlowTimeActive)
@@ -371,7 +374,7 @@ void ApplySlowTimeEffect()
 {
     isSlowTimeActive = true;
     slowTimeDuration = SLOW_TIME_FRAMES;
-    gameSpeed = originalGameSpeed + 80; // Significantly slow down the game
+    gameSpeed = originalGameSpeed; // slow down the game to base speed
 }
 
 void Logic()
@@ -481,6 +484,17 @@ void Logic()
     {
         score += 10;
         nTail++;
+
+        fruitsEaten++;
+
+        // Increase speed slightly every 5 fruits
+        if (fruitsEaten % 5 == 0 && originalGameSpeed > 40)
+        {
+            originalGameSpeed -= 10; // make it faster
+            if (!isSlowTimeActive)
+                gameSpeed = originalGameSpeed;
+            speedLevel++; // increase display level
+        }
 
         // Try to spawn special fruit
         SpawnSpecialFruit();
