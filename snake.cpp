@@ -39,8 +39,8 @@ int rainbowPhase = 0;
 
 // MUSIC VARIABLES
 bool musicEnabled = true;
-string menuMusicFile = "menu.mp3";    // Menu/Game Over music
-string gameMusicFile = "game.mp3";    // Gameplay music
+string menuMusicFile = "menu.mp3";
+string gameMusicFile = "game.mp3";
 
 // Console Utility Functions
 void SetColor(ConsoleColor textColor, ConsoleColor bgColor = BLACK)
@@ -56,6 +56,25 @@ void GotoXY(int x, int y)
     SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
 }
 
+// Clear screen function without flickering
+void ClearScreen()
+{
+    COORD topLeft = {0, 0};
+    HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
+    CONSOLE_SCREEN_BUFFER_INFO screen;
+    DWORD written;
+
+    GetConsoleScreenBufferInfo(console, &screen);
+    FillConsoleOutputCharacterA(
+        console, ' ', screen.dwSize.X * screen.dwSize.Y, topLeft, &written
+    );
+    FillConsoleOutputAttribute(
+        console, FOREGROUND_GREEN | FOREGROUND_RED | FOREGROUND_BLUE,
+        screen.dwSize.X * screen.dwSize.Y, topLeft, &written
+    );
+    SetConsoleCursorPosition(console, topLeft);
+}
+
 // MUSIC FUNCTIONS
 void PlayMenuMusic()
 {
@@ -65,7 +84,7 @@ void PlayMenuMusic()
     string command = "open \"" + menuMusicFile + "\" type mpegvideo alias menumusic";
     mciSendString(command.c_str(), NULL, 0, NULL);
     mciSendString("play menumusic repeat", NULL, 0, NULL);
-    mciSendString("setaudio menumusic volume to 500", NULL, 0, NULL); // 50% volume
+    mciSendString("setaudio menumusic volume to 500", NULL, 0, NULL);
 }
 
 void PlayGameMusic()
@@ -76,7 +95,7 @@ void PlayGameMusic()
     string command = "open \"" + gameMusicFile + "\" type mpegvideo alias gamemusic";
     mciSendString(command.c_str(), NULL, 0, NULL);
     mciSendString("play gamemusic repeat", NULL, 0, NULL);
-    mciSendString("setaudio gamemusic volume to 400", NULL, 0, NULL); // 40% volume
+    mciSendString("setaudio gamemusic volume to 400", NULL, 0, NULL);
 }
 
 void StopMenuMusic()
@@ -168,77 +187,273 @@ void SaveHighScore()
     }
 }
 
-// MENU SCREEN
-void ShowMenu()
+// HIGH SCORE PAGE
+// HIGH SCORE PAGE
+void ShowHighScorePage()
 {
-    system("cls");
-    PlayMenuMusic();
+    ClearScreen();
     
-    SetColor(GREEN);
+    SetColor(YELLOW);
     GotoXY(width / 2 - 10, 5);
     cout << "====================";
     GotoXY(width / 2 - 10, 6);
-    cout << "   SNAKE GAME++    ";
+    cout << "    HIGH SCORE     ";
     GotoXY(width / 2 - 10, 7);
     cout << "====================";
     
-    SetColor(YELLOW);
-    GotoXY(width / 2 - 10, 10);
-    cout << "High Score: " << highScore;
+    SetColor(GREEN);
+    GotoXY(width / 2 - 8, 12);
+    cout << highScore;
     
-    SetColor(CYAN);
-    GotoXY(width / 2 - 12, 13);
-    cout << "Press ENTER to Start";
-    
-    SetColor(WHITE);
-    GotoXY(width / 2 - 15, 16);
-    cout << "Controls:";
-    GotoXY(width / 2 - 15, 17);
-    cout << "  Arrow Keys - Move";
+    SetColor(GREY);
     GotoXY(width / 2 - 15, 18);
-    cout << "  P - Pause | B - Border Wrap";
-    GotoXY(width / 2 - 15, 19);
-    cout << "  M - Toggle Music | X - Exit";
-    
-    SetColor(MAGENTA);
-    GotoXY(width / 2 - 15, 22);
-    cout << "♥ Red Heart = +10 points";
-    GotoXY(width / 2 - 15, 23);
-    cout << "♦ Blue Diamond = Slow Time";
-    
+    cout << "Press ESC to return to menu";
     ResetColor();
     
-    // Wait for ENTER or M key
+    // Wait for ESC key
     while (true)
     {
         if (kbhit())
         {
             char key = getch();
-            if (key == 13) // ENTER
-            {
+            if (key == 27) // ESC
                 break;
+        }
+        Sleep(50);
+    }
+}
+
+
+// SETTINGS PAGE
+void ShowSettingsPage()
+{
+    ClearScreen();
+    
+    int selectedOption = 0;
+    int lastSelectedOption = -1;
+    const int numOptions = 3;
+    
+    while (true)
+    {
+        // Only redraw if selection changed
+        if (selectedOption != lastSelectedOption)
+        {
+            lastSelectedOption = selectedOption;
+        
+            SetColor(CYAN);
+            GotoXY(width / 2 - 10, 5);
+            cout << "====================";
+            GotoXY(width / 2 - 10, 6);
+            cout << "     SETTINGS      ";
+            GotoXY(width / 2 - 10, 7);
+            cout << "====================";
+            
+            // Border Wrap option
+            GotoXY(width / 2 - 12, 11);
+            if (selectedOption == 0)
+            {
+                SetColor(BLACK, WHITE);
+                cout << " > Border Wrap: " << (borderWrap ? "ON " : "OFF") << " < ";
+            }
+            else
+            {
+                SetColor(WHITE);
+                cout << "   Border Wrap: " << (borderWrap ? "ON " : "OFF") << "   ";
+            }
+            
+            // Music option
+            GotoXY(width / 2 - 12, 13);
+            if (selectedOption == 1)
+            {
+                SetColor(BLACK, WHITE);
+                cout << " > Music: " << (musicEnabled ? "ON " : "OFF") << "        < ";
+            }
+            else
+            {
+                SetColor(WHITE);
+                cout << "   Music: " << (musicEnabled ? "ON " : "OFF") << "          ";
+            }
+            
+            // Rainbow Trail option
+            GotoXY(width / 2 - 12, 15);
+            if (selectedOption == 2)
+            {
+                SetColor(BLACK, WHITE);
+                cout << " > Rainbow Trail: " << (rainbowTrail ? "ON " : "OFF") << " < ";
+            }
+            else
+            {
+                SetColor(WHITE);
+                cout << "   Rainbow Trail: " << (rainbowTrail ? "ON " : "OFF") << "   ";
+            }
+            
+            SetColor(GREY);
+            GotoXY(width / 2 - 18, 19);
+            cout << "Use ↑↓ to navigate, ENTER to toggle";
+            GotoXY(width / 2 - 15, 20);
+            cout << "Press ESC to return to menu";
+            ResetColor();
+        }
+        
+        // Input handling
+        if (kbhit())
+        {
+            char key = getch();
+            
+            if (key == 0 || key == -32)
+            {
+                key = getch();
+                switch (key)
+                {
+                case 72: // UP
+                    selectedOption = (selectedOption - 1 + numOptions) % numOptions;
+                    break;
+                case 80: // DOWN
+                    selectedOption = (selectedOption + 1) % numOptions;
+                    break;
+                }
+            }
+            else if (key == 13) // ENTER
+            {
+                switch (selectedOption)
+                {
+                case 0:
+                    borderWrap = !borderWrap;
+                    break;
+                case 1:
+                    ToggleMusic();
+                    if (musicEnabled)
+                        PlayMenuMusic();
+                    break;
+                case 2:
+                    rainbowTrail = !rainbowTrail;
+                    break;
+                }
+            }
+            else if (key == 27) // ESC
+            {
+                return;
+            }
+        }
+        
+        Sleep(50);
+    }
+}
+
+// MAIN MENU
+int ShowMenu()
+{
+    ClearScreen();
+    PlayMenuMusic();
+    
+    int selectedOption = 0;
+    int lastSelectedOption = -1;
+    const int numOptions = 4;
+    string menuOptions[numOptions] = {"Start Game", "Settings", "High Score", "Quit Game"};
+    
+    while (true)
+    {
+        // Only redraw if selection changed
+        if (selectedOption != lastSelectedOption)
+        {
+            lastSelectedOption = selectedOption;
+        
+            SetColor(GREEN);
+            GotoXY(width / 2 - 10, 5);
+            cout << "====================";
+            GotoXY(width / 2 - 10, 6);
+            cout << "   SNAKE GAME++    ";
+            GotoXY(width / 2 - 10, 7);
+            cout << "====================";
+            
+            // SetColor(YELLOW);
+            // GotoXY(width / 2 - 10, 9);
+            // cout << "High Score: " << highScore;
+            
+            // Display menu options
+            for (int i = 0; i < numOptions; i++)
+            {
+                GotoXY(width / 2 - 10, 12 + i * 2);
+                if (i == selectedOption)
+                {
+                    SetColor(BLACK, WHITE);
+                    cout << " > " << menuOptions[i];
+                    // Add padding to make all options same width
+                    int padding = 15 - menuOptions[i].length();
+                    for (int j = 0; j < padding; j++)
+                        cout << " ";
+                    cout << " < ";
+                }
+                else
+                {
+                    SetColor(CYAN);
+                    cout << "   " << menuOptions[i];
+                    int padding = 15 - menuOptions[i].length();
+                    for (int j = 0; j < padding; j++)
+                        cout << " ";
+                    cout << "   ";
+                }
+            }
+            
+            SetColor(WHITE);
+            GotoXY(width / 2 - 15, 22);
+            cout << "Controls:";
+            GotoXY(width / 2 - 15, 23);
+            cout << "  Arrow Keys - Move";
+            GotoXY(width / 2 - 15, 24);
+            cout << "  P - Pause | X - Exit Game";
+            
+            SetColor(MAGENTA);
+            GotoXY(width / 2 - 15, 26);
+            cout << "Red Heart = +10 points";
+            GotoXY(width / 2 - 15, 27);
+            cout << "Blue Diamond = Slow Time";
+            
+            SetColor(GREY);
+            GotoXY(width / 2 - 18, 29);
+            cout << "Use ↑↓ to navigate, ENTER to select";
+            
+            ResetColor();
+        }
+        
+        // Input handling
+        if (kbhit())
+        {
+            char key = getch();
+            
+            if (key == 0 || key == -32)
+            {
+                key = getch();
+                switch (key)
+                {
+                case 72: // UP
+                    selectedOption = (selectedOption - 1 + numOptions) % numOptions;
+                    break;
+                case 80: // DOWN
+                    selectedOption = (selectedOption + 1) % numOptions;
+                    break;
+                }
+            }
+            else if (key == 13) // ENTER
+            {
+                return selectedOption;
             }
             else if (key == 'm' || key == 'M')
             {
                 ToggleMusic();
-                SetColor(musicEnabled ? GREEN : RED);
-                GotoXY(width / 2 - 10, 25);
-                cout << (musicEnabled ? "Music: ON  " : "Music: OFF ");
-                ResetColor();
+                if (musicEnabled)
+                    PlayMenuMusic();
             }
         }
+        
         Sleep(50);
     }
-    
-    StopMenuMusic();
 }
 
 //  Game Logic and Drawing
 void Setup()
 {
     SetConsoleOutputCP(65001);
-    LoadHighScore();
-
     srand(static_cast<unsigned int>(time(0)));
     gameOver = false;
     dir = RIGHT;
@@ -264,7 +479,7 @@ void Setup()
     cursorInfo.bVisible = false;
     SetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &cursorInfo);
 
-    system("cls");
+    ClearScreen();
     SetColor(DARKGREY);
     for (int i = 0; i < width + 2; i++)
     {
@@ -283,6 +498,7 @@ void Setup()
     ResetColor();
     
     // Start game music
+    StopMenuMusic();
     PlayGameMusic();
 }
 
@@ -440,17 +656,6 @@ void Input()
                 getch();
                 GotoXY(width / 2 - 2, height / 2 + 1);
                 cout << "      ";
-                ResetColor();
-                break;
-            case 'b':
-            case 'B':
-                borderWrap = !borderWrap;
-                SetColor(borderWrap ? GREEN : RED);
-                GotoXY(width / 2 - 8, height / 2 + 1);
-                cout << (borderWrap ? "BORDER WRAP: ON " : "BORDER WRAP: OFF");
-                Sleep(600);
-                GotoXY(width / 2 - 8, height / 2 + 1);
-                cout << "                ";
                 ResetColor();
                 break;
             case 'm':
@@ -651,52 +856,73 @@ void Logic()
 //  Main Program
 int main()
 {
-    ShowMenu();
-    Setup();
+    LoadHighScore();
     
-    while (!gameOver)
+    while (true)
     {
-        Input();
-        Logic();
-        Draw();
-        Sleep(gameSpeed);
+        int menuChoice = ShowMenu();
+        
+        switch (menuChoice)
+        {
+        case 0: // Start Game
+            Setup();
+            
+            while (!gameOver)
+            {
+                Input();
+                Logic();
+                Draw();
+                Sleep(gameSpeed);
+            }
+
+            // Stop game music and play menu music for game over
+            StopGameMusic();
+            PlayMenuMusic();
+
+            // Game Over screen
+            ClearScreen();
+            SetColor(RED);
+            GotoXY(width / 2 - 5, height / 2 - 2);
+            cout << "GAME OVER!";
+
+            SetColor(YELLOW);
+            GotoXY(width / 2 - 8, height / 2);
+            cout << "Final Score: " << score;
+
+            if (score == highScore && score > 0)
+            {
+                SetColor(GREEN);
+                GotoXY(width / 2 - 12, height / 2 + 1);
+                cout << "NEW HIGH SCORE: " << highScore;
+            }
+            else
+            {
+                SetColor(CYAN);
+                GotoXY(width / 2 - 12, height / 2 + 1);
+                cout << "Current High Score: " << highScore;
+            }
+
+            SetColor(GREY);
+            GotoXY(width / 2 - 12, height / 2 + 3);
+            cout << "Press any key to continue...";
+            ResetColor();
+
+            getch();
+            break;
+            
+        case 1: // Settings
+            ShowSettingsPage();
+            break;
+            
+        case 2: // High Score
+            ShowHighScorePage();
+            break;
+            
+        case 3: // Quit Game
+            StopAllMusic();
+            return 0;
+        }
     }
-
-    // Stop game music and play menu music for game over
-    StopGameMusic();
-    PlayMenuMusic();
-
-    // Game Over screen
-    system("cls");
-    SetColor(RED);
-    GotoXY(width / 2 - 5, height / 2 - 2);
-    cout << "GAME OVER!";
-
-    SetColor(YELLOW);
-    GotoXY(width / 2 - 8, height / 2);
-    cout << "Final Score: " << score;
-
-    if (score == highScore && score > 0)
-    {
-        SetColor(GREEN);
-        GotoXY(width / 2 - 12, height / 2 + 1);
-        cout << "NEW HIGH SCORE: " << highScore;
-    }
-    else
-    {
-        SetColor(CYAN);
-        GotoXY(width / 2 - 12, height / 2 + 1);
-        cout << "Current High Score: " << highScore;
-    }
-
-    SetColor(GREY);
-    GotoXY(width / 2 - 12, height / 2 + 3);
-    cout << "Press any key to exit...";
-    ResetColor();
-
-    getch();
-    
-    StopAllMusic();
 
     return 0;
 }
