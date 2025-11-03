@@ -6,6 +6,9 @@
 #include <conio.h>
 #include <fstream>
 #include <string>
+#include <mmsystem.h>
+
+#pragma comment(lib, "winmm.lib")
 
 using namespace std;
 
@@ -29,9 +32,15 @@ enum ConsoleColor
     YELLOW = 14,
     WHITE = 15
 };
-bool borderWrap = false;  // New feature flag
-bool rainbowTrail = true; // Toggle color-cycling tail
+
+bool borderWrap = false;
+bool rainbowTrail = true;
 int rainbowPhase = 0;
+
+// MUSIC VARIABLES
+bool musicEnabled = true;
+string menuMusicFile = "menu.mp3";    // Menu/Game Over music
+string gameMusicFile = "game.mp3";    // Gameplay music
 
 // Console Utility Functions
 void SetColor(ConsoleColor textColor, ConsoleColor bgColor = BLACK)
@@ -47,6 +56,56 @@ void GotoXY(int x, int y)
     SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
 }
 
+// MUSIC FUNCTIONS
+void PlayMenuMusic()
+{
+    if (!musicEnabled) return;
+    
+    mciSendString("close menumusic", NULL, 0, NULL);
+    string command = "open \"" + menuMusicFile + "\" type mpegvideo alias menumusic";
+    mciSendString(command.c_str(), NULL, 0, NULL);
+    mciSendString("play menumusic repeat", NULL, 0, NULL);
+    mciSendString("setaudio menumusic volume to 500", NULL, 0, NULL); // 50% volume
+}
+
+void PlayGameMusic()
+{
+    if (!musicEnabled) return;
+    
+    mciSendString("close gamemusic", NULL, 0, NULL);
+    string command = "open \"" + gameMusicFile + "\" type mpegvideo alias gamemusic";
+    mciSendString(command.c_str(), NULL, 0, NULL);
+    mciSendString("play gamemusic repeat", NULL, 0, NULL);
+    mciSendString("setaudio gamemusic volume to 400", NULL, 0, NULL); // 40% volume
+}
+
+void StopMenuMusic()
+{
+    mciSendString("stop menumusic", NULL, 0, NULL);
+    mciSendString("close menumusic", NULL, 0, NULL);
+}
+
+void StopGameMusic()
+{
+    mciSendString("stop gamemusic", NULL, 0, NULL);
+    mciSendString("close gamemusic", NULL, 0, NULL);
+}
+
+void StopAllMusic()
+{
+    StopMenuMusic();
+    StopGameMusic();
+}
+
+void ToggleMusic()
+{
+    musicEnabled = !musicEnabled;
+    if (!musicEnabled)
+    {
+        StopAllMusic();
+    }
+}
+
 //  Global Game Variables
 bool gameOver;
 const int width = 40;
@@ -54,16 +113,16 @@ const int height = 20;
 int headX, headY, fruitX, fruitY, score;
 
 //  SPECIAL FRUIT VARIABLES
-int specialFruitX, specialFruitY; // Coordinates for the Special Fruit (Blue Diamond)
+int specialFruitX, specialFruitY;
 bool isSpecialFruitOnScreen = false;
-const int SPECIAL_FRUIT_SPAWN_CHANCE = 5; // 1 in 5 chance on fruit consumption
-int fruitsEaten = 0;                      // Track how many regular fruits eaten
+const int SPECIAL_FRUIT_SPAWN_CHANCE = 5;
+int fruitsEaten = 0;
 
 //  SPEED VARIABLES
 bool isSlowTimeActive = false;
-int slowTimeDuration = 0;        // Frames remaining for slow time
-int originalGameSpeed = 110;     // Store the base speed
-const int SLOW_TIME_FRAMES = 83; // Effect lasts for 83 frames (approx 10 seconds)
+int slowTimeDuration = 0;
+int originalGameSpeed = 110;
+const int SLOW_TIME_FRAMES = 83;
 int speedLevel = 1;
 
 int tailX[1000], tailY[1000];
@@ -109,8 +168,72 @@ void SaveHighScore()
     }
 }
 
-//  Game Logic and Drawing
+// MENU SCREEN
+void ShowMenu()
+{
+    system("cls");
+    PlayMenuMusic();
+    
+    SetColor(GREEN);
+    GotoXY(width / 2 - 10, 5);
+    cout << "====================";
+    GotoXY(width / 2 - 10, 6);
+    cout << "   SNAKE GAME++    ";
+    GotoXY(width / 2 - 10, 7);
+    cout << "====================";
+    
+    SetColor(YELLOW);
+    GotoXY(width / 2 - 10, 10);
+    cout << "High Score: " << highScore;
+    
+    SetColor(CYAN);
+    GotoXY(width / 2 - 12, 13);
+    cout << "Press ENTER to Start";
+    
+    SetColor(WHITE);
+    GotoXY(width / 2 - 15, 16);
+    cout << "Controls:";
+    GotoXY(width / 2 - 15, 17);
+    cout << "  Arrow Keys - Move";
+    GotoXY(width / 2 - 15, 18);
+    cout << "  P - Pause | B - Border Wrap";
+    GotoXY(width / 2 - 15, 19);
+    cout << "  M - Toggle Music | X - Exit";
+    
+    SetColor(MAGENTA);
+    GotoXY(width / 2 - 15, 22);
+    cout << "♥ Red Heart = +10 points";
+    GotoXY(width / 2 - 15, 23);
+    cout << "♦ Blue Diamond = Slow Time";
+    
+    ResetColor();
+    
+    // Wait for ENTER or M key
+    while (true)
+    {
+        if (kbhit())
+        {
+            char key = getch();
+            if (key == 13) // ENTER
+            {
+                break;
+            }
+            else if (key == 'm' || key == 'M')
+            {
+                ToggleMusic();
+                SetColor(musicEnabled ? GREEN : RED);
+                GotoXY(width / 2 - 10, 25);
+                cout << (musicEnabled ? "Music: ON  " : "Music: OFF ");
+                ResetColor();
+            }
+        }
+        Sleep(50);
+    }
+    
+    StopMenuMusic();
+}
 
+//  Game Logic and Drawing
 void Setup()
 {
     SetConsoleOutputCP(65001);
@@ -127,12 +250,11 @@ void Setup()
     score = 0;
     nTail = 0;
     speedLevel = 1;
-    gameSpeed = originalGameSpeed; // Start at base speed
+    gameSpeed = originalGameSpeed;
     frameCount = 0;
     lastTailX = -1;
     lastTailY = -1;
 
-    // Reset special effects
     isSpecialFruitOnScreen = false;
     isSlowTimeActive = false;
     slowTimeDuration = 0;
@@ -159,11 +281,13 @@ void Setup()
         cout << "█";
     }
     ResetColor();
+    
+    // Start game music
+    PlayGameMusic();
 }
 
 void Draw()
 {
-    // 1. Erase the very last position of the snake
     if (lastTailX != -1)
     {
         GotoXY(lastTailX + 1, lastTailY + 1);
@@ -171,7 +295,6 @@ void Draw()
         lastTailX = -1;
     }
 
-    // 2. Draw Head with directional animation and color change
     GotoXY(headX + 1, headY + 1);
 
     char headChar;
@@ -192,7 +315,6 @@ void Draw()
     }
     else
     {
-        // Change to CYAN when slow time is active for visual feedback
         if (isSlowTimeActive)
             SetColor(CYAN, BLACK);
         else
@@ -201,10 +323,8 @@ void Draw()
     cout << headChar;
     frameCount++;
 
-    // 3. Draw new segment of Tail
     if (nTail > 0)
     {
-        // Rainbow trail effect for all tail segments
         for (int i = 0; i < nTail; i++)
         {
             GotoXY(tailX[i] + 1, tailY[i] + 1);
@@ -245,34 +365,33 @@ void Draw()
     }
     ResetColor();
 
-    // 4. Draw Standard Food (Heart symbol)
     GotoXY(fruitX + 1, fruitY + 1);
     SetColor(RED);
     cout << "♥";
     ResetColor();
 
-    // 5. Draw Special Food (Blue Diamond)
     if (isSpecialFruitOnScreen)
     {
         GotoXY(specialFruitX + 1, specialFruitY + 1);
         SetColor(BLUE);
-        cout << "♦"; // Blue Diamond for special fruit
+        cout << "♦";
         ResetColor();
     }
 
-    // 6. Update Score and High Score & Effect Status
     GotoXY(0, height + 2);
     SetColor(YELLOW);
     cout << "Score: " << score << " | High Score: " << highScore;
     cout << " | Speed Level: " << speedLevel;
 
-    // Display Status of Active Effect
     if (isSlowTimeActive)
     {
         SetColor(CYAN);
         cout << " | STATUS: SLOW TIME (" << slowTimeDuration / (1000 / originalGameSpeed) << "s)";
     }
-    cout << "  "; // Padding
+    
+    SetColor(GREY);
+    cout << " | Music: " << (musicEnabled ? "ON" : "OFF");
+    cout << "  ";
     ResetColor();
 }
 
@@ -334,6 +453,12 @@ void Input()
                 cout << "                ";
                 ResetColor();
                 break;
+            case 'm':
+            case 'M':
+                ToggleMusic();
+                if (musicEnabled)
+                    PlayGameMusic();
+                break;
             }
         }
     }
@@ -342,9 +467,8 @@ void Input()
 void SpawnSpecialFruit()
 {
     if (isSpecialFruitOnScreen)
-        return; // Only one special fruit at a time
+        return;
 
-    // 1 in SPECIAL_FRUIT_SPAWN_CHANCE chance to spawn
     if (rand() % SPECIAL_FRUIT_SPAWN_CHANCE == 0)
     {
         isSpecialFruitOnScreen = true;
@@ -354,7 +478,6 @@ void SpawnSpecialFruit()
             validPos = true;
             specialFruitX = rand() % width;
             specialFruitY = rand() % height;
-            // Check collision with head, body, and regular fruit
             if ((specialFruitX == headX && specialFruitY == headY) ||
                 (specialFruitX == fruitX && specialFruitY == fruitY))
                 validPos = false;
@@ -374,31 +497,29 @@ void ApplySlowTimeEffect()
 {
     isSlowTimeActive = true;
     slowTimeDuration = SLOW_TIME_FRAMES;
-    gameSpeed = originalGameSpeed; // slow down the game to base speed
+    gameSpeed = originalGameSpeed;
 }
 
 void Logic()
 {
     lastDir = dir;
 
-    //  EFFECT MANAGEMENT
     if (isSlowTimeActive)
     {
         slowTimeDuration--;
         if (slowTimeDuration <= 0)
         {
             isSlowTimeActive = false;
-            gameSpeed = originalGameSpeed; // Reset to original speed
+            gameSpeed = originalGameSpeed;
         }
     }
-    // Update originalGameSpeed based on current score (for non-effect base speed)
+    
     originalGameSpeed = max(120 - (score / 50) * 10, 10);
     if (!isSlowTimeActive)
     {
-        gameSpeed = originalGameSpeed; // Apply normal speed if effect is off
+        gameSpeed = originalGameSpeed;
     }
 
-    //  MOVEMENT & COLLISION
     if (nTail > 0)
     {
         lastTailX = tailX[nTail - 1];
@@ -409,11 +530,13 @@ void Logic()
         lastTailX = headX;
         lastTailY = headY;
     }
+    
     for (int i = nTail - 1; i > 0; i--)
     {
         tailX[i] = tailX[i - 1];
         tailY[i] = tailY[i - 1];
     }
+    
     if (nTail > 0)
     {
         tailX[0] = headX;
@@ -442,7 +565,6 @@ void Logic()
 
     bool collided = false;
 
-    // Wall collision / wrapping
     if (borderWrap)
     {
         if (headX < 0)
@@ -460,7 +582,6 @@ void Logic()
             collided = true;
     }
 
-    // Self collision
     for (int i = 0; i < nTail; i++)
     {
         if (tailX[i] == headX && tailY[i] == headY)
@@ -477,36 +598,28 @@ void Logic()
         }
     }
 
-    //  FRUIT CHECKS
-
-    // 1. Regular Fruit Check
     if (headX == fruitX && headY == fruitY)
     {
         score += 10;
         nTail++;
-
         fruitsEaten++;
 
-        // Increase speed slightly every 5 fruits
         if (fruitsEaten % 5 == 0 && originalGameSpeed > 40)
         {
-            originalGameSpeed -= 10; // make it faster
+            originalGameSpeed -= 10;
             if (!isSlowTimeActive)
                 gameSpeed = originalGameSpeed;
-            speedLevel++; // increase display level
+            speedLevel++;
         }
 
-        // Try to spawn special fruit
         SpawnSpecialFruit();
 
-        // Spawn new regular fruit
         bool validPos;
         do
         {
             validPos = true;
             fruitX = rand() % width;
             fruitY = rand() % height;
-            // Also check collision with special fruit position
             if ((fruitX == specialFruitX && fruitY == specialFruitY) && isSpecialFruitOnScreen)
                 validPos = false;
             if (fruitX == headX && fruitY == headY)
@@ -522,27 +635,25 @@ void Logic()
         } while (!validPos);
     }
 
-    // 2. Special Fruit Check
     if (isSpecialFruitOnScreen && headX == specialFruitX && headY == specialFruitY)
     {
-        // Remove the fruit and apply effect
         isSpecialFruitOnScreen = false;
         ApplySlowTimeEffect();
 
-        // Erase the fruit from the screen immediately (important for smooth removal)
         GotoXY(specialFruitX + 1, specialFruitY + 1);
         cout << " ";
 
-        // Reset coordinates to avoid accidental double-eating
         specialFruitX = -1;
         specialFruitY = -1;
     }
 }
 
-//  Main Program (Unchanged)
+//  Main Program
 int main()
 {
+    ShowMenu();
     Setup();
+    
     while (!gameOver)
     {
         Input();
@@ -550,6 +661,10 @@ int main()
         Draw();
         Sleep(gameSpeed);
     }
+
+    // Stop game music and play menu music for game over
+    StopGameMusic();
+    PlayMenuMusic();
 
     // Game Over screen
     system("cls");
@@ -580,6 +695,8 @@ int main()
     ResetColor();
 
     getch();
+    
+    StopAllMusic();
 
     return 0;
 }
