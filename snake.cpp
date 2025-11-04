@@ -7,6 +7,7 @@
 #include <fstream>
 #include <string>
 #include <mmsystem.h>
+#include <algorithm>
 
 #pragma comment(lib, "winmm.lib")
 using namespace std;
@@ -30,6 +31,13 @@ enum ConsoleColor
     MAGENTA = 13,
     YELLOW = 14,
     WHITE = 15
+};
+
+// Structure to store high score entries
+struct HighScoreEntry
+{
+    string playerName;
+    int score;
 };
 
 bool borderWrap = false;
@@ -56,7 +64,9 @@ void ApplySlowTimeEffect();
 void SpawnSpecialFruit();
 void ShowSettingsPage();
 void ShowHighScorePage();
+void ShowHelpPage();
 int ShowMenu();
+string GetPlayerName();
 
 // MUSIC VARIABLES
 bool musicEnabled = true;
@@ -95,30 +105,30 @@ void ClearScreen()
 void PlayMenuMusic()
 {
     if (!musicEnabled) return;
-    mciSendStringA("close menumusic", NULL, 0, NULL);
+    mciSendString("close menumusic", NULL, 0, NULL);
     string command = "open \"" + menuMusicFile + "\" type mpegvideo alias menumusic";
-    mciSendStringA(command.c_str(), NULL, 0, NULL);
-    mciSendStringA("play menumusic repeat", NULL, 0, NULL);
-    mciSendStringA("setaudio menumusic volume to 500", NULL, 0, NULL);
+    mciSendString(command.c_str(), NULL, 0, NULL);
+    mciSendString("play menumusic repeat", NULL, 0, NULL);
+    mciSendString("setaudio menumusic volume to 500", NULL, 0, NULL);
 }
 void PlayGameMusic()
 {
     if (!musicEnabled) return;
-    mciSendStringA("close gamemusic", NULL, 0, NULL);
+    mciSendString("close gamemusic", NULL, 0, NULL);
     string command = "open \"" + gameMusicFile + "\" type mpegvideo alias gamemusic";
-    mciSendStringA(command.c_str(), NULL, 0, NULL);
-    mciSendStringA("play gamemusic repeat", NULL, 0, NULL);
-    mciSendStringA("setaudio gamemusic volume to 400", NULL, 0, NULL);
+    mciSendString(command.c_str(), NULL, 0, NULL);
+    mciSendString("play gamemusic repeat", NULL, 0, NULL);
+    mciSendString("setaudio gamemusic volume to 400", NULL, 0, NULL);
 }
 void StopMenuMusic()
 {
-    mciSendStringA("stop menumusic", NULL, 0, NULL);
-    mciSendStringA("close menumusic", NULL, 0, NULL);
+    mciSendString("stop menumusic", NULL, 0, NULL);
+    mciSendString("close menumusic", NULL, 0, NULL);
 }
 void StopGameMusic()
 {
-    mciSendStringA("stop gamemusic", NULL, 0, NULL);
-    mciSendStringA("close gamemusic", NULL, 0, NULL);
+    mciSendString("stop gamemusic", NULL, 0, NULL);
+    mciSendString("close gamemusic", NULL, 0, NULL);
 }
 void StopAllMusic()
 {
@@ -131,16 +141,18 @@ void ToggleMusic()
     if (!musicEnabled) StopAllMusic();
 }
 
-//  Global Game Variables
+// Global Game Variables
 bool gameOver;
 const int width = 40;
 const int height = 20;
 int headX, headY, fruitX, fruitY, score;
+
 // SPECIAL FRUIT VARIABLES
 int specialFruitX, specialFruitY;
 bool isSpecialFruitOnScreen = false;
 const int SPECIAL_FRUIT_SPAWN_CHANCE = 5;
 int fruitsEaten = 0;
+
 // SPEED VARIABLES
 bool isSlowTimeActive = false;
 int slowTimeDuration = 0;
@@ -153,6 +165,7 @@ int nTail;
 int gameSpeed = 130;
 int frameCount = 0;
 int highScore = 0;
+string highScorePlayerName = "Player";
 
 enum eDirection
 {
@@ -173,20 +186,165 @@ void LoadHighScore()
     if (fileIn.is_open())
     {
         fileIn >> highScore;
+        fileIn.ignore();
+        getline(fileIn, highScorePlayerName);
+        if (highScorePlayerName.empty())
+            highScorePlayerName = "Player";
         fileIn.close();
     }
     else
     {
         highScore = 0;
+        highScorePlayerName = "Player";
     }
 }
+
 void SaveHighScore()
 {
     ofstream fileOut("highscore.txt");
     if (fileOut.is_open())
     {
-        fileOut << highScore;
+        fileOut << highScore << endl;
+        fileOut << highScorePlayerName;
         fileOut.close();
+    }
+}
+
+// GET PLAYER NAME FUNCTION
+string GetPlayerName()
+{
+    ClearScreen();
+    SetColor(YELLOW);
+    GotoXY(width / 2 - 12, 8);
+    cout << "==========================";
+    GotoXY(width / 2 - 12, 9);
+    cout << "   NEW HIGH SCORE!!!   ";
+    GotoXY(width / 2 - 12, 10);
+    cout << "==========================";
+    
+    SetColor(GREEN);
+    GotoXY(width / 2 - 10, 12);
+    cout << "Score: " << score;
+    
+    SetColor(CYAN);
+    GotoXY(width / 2 - 15, 15);
+    cout << "Enter your name (max 20 chars):";
+    
+    GotoXY(width / 2 - 10, 17);
+    SetColor(WHITE);
+    
+    // Enable cursor
+    CONSOLE_CURSOR_INFO cursorInfo;
+    GetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &cursorInfo);
+    cursorInfo.bVisible = true;
+    SetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &cursorInfo);
+    
+    string name = "";
+    char ch;
+    
+    while (true)
+    {
+        ch = _getch();
+        
+        if (ch == 13 && name.length() > 0) // Enter key
+        {
+            break;
+        }
+        else if (ch == 8 && name.length() > 0) // Backspace
+        {
+            name.pop_back();
+            GotoXY(width / 2 - 10, 17);
+            cout << string(20, ' ');
+            GotoXY(width / 2 - 10, 17);
+            cout << name;
+        }
+        else if (name.length() < 20 && ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || 
+                 (ch >= '0' && ch <= '9') || ch == ' ' || ch == '_'))
+        {
+            name += ch;
+            GotoXY(width / 2 - 10, 17);
+            cout << name;
+        }
+    }
+    
+    // Disable cursor again
+    cursorInfo.bVisible = false;
+    SetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &cursorInfo);
+    
+    ResetColor();
+    return name.empty() ? "Player" : name;
+}
+
+// HELP PAGE
+void ShowHelpPage()
+{
+    ClearScreen();
+    SetColor(CYAN);
+    GotoXY(width / 2 - 10, 2);
+    cout << "====================";
+    GotoXY(width / 2 - 10, 3);
+    cout << "   GAME HELP PAGE  ";
+    GotoXY(width / 2 - 10, 4);
+    cout << "====================";
+    
+    SetColor(YELLOW);
+    GotoXY(5, 6);
+    cout << "OBJECTIVE:";
+    SetColor(WHITE);
+    GotoXY(5, 7);
+    cout << "  Eat fruits to grow your snake and score points!";
+    GotoXY(5, 8);
+    cout << "  Avoid hitting walls (if Border Wrap is OFF) and yourself.";
+    
+    SetColor(YELLOW);
+    GotoXY(5, 10);
+    cout << "CONTROLS:";
+    SetColor(WHITE);
+    GotoXY(5, 11);
+    cout << "  Arrow Keys or WASD - Move the snake";
+    GotoXY(5, 12);
+    cout << "  P - Pause the game";
+    GotoXY(5, 13);
+    cout << "  X - Exit to main menu";
+    GotoXY(5, 14);
+    cout << "  M - Toggle music on/off";
+    
+    SetColor(YELLOW);
+    GotoXY(5, 16);
+    cout << "SPECIAL ITEMS:";
+    SetColor(RED);
+    GotoXY(5, 17);
+    cout << "  ♥ Red Heart - Normal fruit (+10 points, grows snake)";
+    SetColor(BLUE);
+    GotoXY(5, 18);
+    cout << "  ♦ Blue Diamond - Slow Time effect (temporary speed reduction)";
+    
+    SetColor(YELLOW);
+    GotoXY(5, 20);
+    cout << "FEATURES:";
+    SetColor(WHITE);
+    GotoXY(5, 21);
+    cout << "  - Speed increases every 5 fruits eaten";
+    GotoXY(5, 22);
+    cout << "  - Rainbow Trail mode for colorful snake";
+    GotoXY(5, 23);
+    cout << "  - Border Wrap to teleport through walls";
+    GotoXY(5, 24);
+    cout << "  - High score tracking with player names";
+    
+    SetColor(GREY);
+    GotoXY(width / 2 - 15, 27);
+    cout << "Press ESC to return to menu";
+    ResetColor();
+    
+    while (true)
+    {
+        if (kbhit())
+        {
+            char key = getch();
+            if (key == 27) break; // ESC
+        }
+        Sleep(50);
     }
 }
 
@@ -201,13 +359,20 @@ void ShowHighScorePage()
     cout << "    HIGH SCORE     ";
     GotoXY(width / 2 - 10, 7);
     cout << "====================";
+    
     SetColor(GREEN);
-    GotoXY(width / 2 - 8, 12);
-    cout << highScore;
+    GotoXY(width / 2 - 10, 10);
+    cout << "Player: " << highScorePlayerName;
+    
+    SetColor(CYAN);
+    GotoXY(width / 2 - 10, 12);
+    cout << "Score: " << highScore;
+    
     SetColor(GREY);
     GotoXY(width / 2 - 15, 18);
     cout << "Press ESC to return to menu";
     ResetColor();
+    
     while (true)
     {
         if (kbhit())
@@ -226,6 +391,7 @@ void ShowSettingsPage()
     int selectedOption = 0;
     int lastSelectedOption = -1;
     const int numOptions = 3;
+    
     while (true)
     {
         if (selectedOption != lastSelectedOption)
@@ -238,21 +404,25 @@ void ShowSettingsPage()
             cout << "     SETTINGS      ";
             GotoXY(width / 2 - 10, 7);
             cout << "====================";
+            
             GotoXY(width / 2 - 12, 11);
             if (selectedOption == 0)
             { SetColor(BLACK, WHITE); cout << " > Border Wrap: " << (borderWrap ? "ON " : "OFF") << " < "; }
             else
             { SetColor(WHITE); cout << "   Border Wrap: " << (borderWrap ? "ON " : "OFF") << "   "; }
+            
             GotoXY(width / 2 - 12, 13);
             if (selectedOption == 1)
             { SetColor(BLACK, WHITE); cout << " > Music: " << (musicEnabled ? "ON " : "OFF") << "        < "; }
             else
             { SetColor(WHITE); cout << "   Music: " << (musicEnabled ? "ON " : "OFF") << "          "; }
+            
             GotoXY(width / 2 - 12, 15);
             if (selectedOption == 2)
             { SetColor(BLACK, WHITE); cout << " > Rainbow Trail: " << (rainbowTrail ? "ON " : "OFF") << " < "; }
             else
             { SetColor(WHITE); cout << "   Rainbow Trail: " << (rainbowTrail ? "ON " : "OFF") << "   "; }
+            
             SetColor(GREY);
             GotoXY(width / 2 - 18, 19);
             cout << "Use ↑↓ to navigate, ENTER to toggle";
@@ -260,6 +430,7 @@ void ShowSettingsPage()
             cout << "Press ESC to return to menu";
             ResetColor();
         }
+        
         if (kbhit())
         {
             char key = getch();
@@ -277,7 +448,11 @@ void ShowSettingsPage()
                 switch (selectedOption)
                 {
                     case 0: borderWrap = !borderWrap; break;
-                    case 1: ToggleMusic(); if (musicEnabled) PlayMenuMusic(); break;
+                    case 1: 
+                        ToggleMusic(); 
+                        if (musicEnabled) PlayMenuMusic();
+                        else StopAllMusic();
+                        break;
                     case 2: rainbowTrail = !rainbowTrail; break;
                 }
             }
@@ -297,8 +472,9 @@ int ShowMenu()
     PlayMenuMusic();
     int selectedOption = 0;
     int lastSelectedOption = -1;
-    const int numOptions = 4;
-    string menuOptions[numOptions] = { "Start Game", "Settings", "High Score", "Quit Game" };
+    const int numOptions = 5;
+    string menuOptions[numOptions] = { "Start Game", "Help", "Settings", "High Score", "Quit Game" };
+    
     while (true)
     {
         if (selectedOption != lastSelectedOption)
@@ -311,9 +487,11 @@ int ShowMenu()
             cout << "   SNAKE GAME++    ";
             GotoXY(width / 2 - 10, 7);
             cout << "====================";
+            
             SetColor(YELLOW);
             GotoXY(width / 2 - 10, 9);
             cout << "High Score: " << highScore;
+            
             for (int i = 0; i < numOptions; i++)
             {
                 GotoXY(width / 2 - 10, 12 + i * 2);
@@ -334,23 +512,21 @@ int ShowMenu()
                     cout << "   ";
                 }
             }
-            SetColor(WHITE);
-            GotoXY(width / 2 - 15, 22);
-            cout << "Controls:";
-            GotoXY(width / 2 - 15, 23);
-            cout << "  Arrow Keys or WASD - Move";
-            GotoXY(width / 2 - 15, 24);
-            cout << "  P - Pause | X - Exit Game";
+            
             SetColor(MAGENTA);
-            GotoXY(width / 2 - 15, 26);
+            GotoXY(width / 2 - 15, 24);
             cout << "Red Heart = +10 points";
-            GotoXY(width / 2 - 15, 27);
+            GotoXY(width / 2 - 15, 25);
             cout << "Blue Diamond = Slow Time";
+            
             SetColor(GREY);
-            GotoXY(width / 2 - 18, 29);
+            GotoXY(width / 2 - 18, 27);
             cout << "Use UP/DOWN to navigate, ENTER to select";
+            GotoXY(width / 2 - 10, 28);
+            cout << "Music: " << (musicEnabled ? "ON" : "OFF");
             ResetColor();
         }
+        
         if (kbhit())
         {
             char key = getch();
@@ -387,7 +563,6 @@ void ShowPauseOverlay()
         if (selectedOption != lastSelectedOption)
         {
             lastSelectedOption = selectedOption;
-            // Draw overlay box ONLY (do not clear big area)
             SetColor(GREY, BLACK);
             for (int y = height / 2 - 4; y <= height / 2 + 8; ++y)
             {
@@ -432,9 +607,8 @@ void ShowPauseOverlay()
                     case 80: selectedOption = (selectedOption + 1) % numOptions; break;
                 }
             }
-            else if ((key == 13 && selectedOption != 0) || key == 27 || key == 'r' || key == 'R')
+            else if ((key == 13 && selectedOption == 0) || key == 27 || key == 'r' || key == 'R')
             {
-                // Instead of clearing just the overlay, clear the whole screen and redraw game
                 ClearScreen();
                 Draw();
                 return;
@@ -444,7 +618,11 @@ void ShowPauseOverlay()
                 switch (selectedOption)
                 {
                     case 1: borderWrap = !borderWrap; break;
-                    case 2: ToggleMusic(); if (musicEnabled) PlayGameMusic(); break;
+                    case 2: 
+                        ToggleMusic(); 
+                        if (musicEnabled) PlayGameMusic();
+                        else StopAllMusic();
+                        break;
                     case 3: rainbowTrail = !rainbowTrail; break;
                     default: break;
                 }
@@ -465,7 +643,6 @@ void Setup()
     headX = width / 2; 
     headY = height / 2;
     
-    // Initialize snake with 3 cells (head + 2 tail segments)
     nTail = 2;
     tailX[0] = headX - 1;
     tailY[0] = headY;
@@ -475,7 +652,6 @@ void Setup()
     fruitX = rand() % width; 
     fruitY = rand() % height;
     
-    // Make sure fruit doesn't spawn on snake
     bool validPos = false;
     while (!validPos)
     {
@@ -531,7 +707,6 @@ void Setup()
 
 void Draw()
 {
-    // Draw border
     SetColor(DARKGREY);
     for (int i = 0; i < width + 2; i++)
     {
@@ -627,25 +802,24 @@ void Input()
             key = getch();
             switch (key)
             {
-            case 72: if (lastDir != DOWN) dir = UP; break;      // Up arrow
-            case 80: if (lastDir != UP) dir = DOWN; break;      // Down arrow
-            case 75: if (lastDir != RIGHT) dir = LEFT; break;   // Left arrow
-            case 77: if (lastDir != LEFT) dir = RIGHT; break;   // Right arrow
+            case 72: if (lastDir != DOWN) dir = UP; break;
+            case 80: if (lastDir != UP) dir = DOWN; break;
+            case 75: if (lastDir != RIGHT) dir = LEFT; break;
+            case 77: if (lastDir != LEFT) dir = RIGHT; break;
             }
         }
         else
         {
-            // Convert to lowercase for easier comparison
             char lowerKey = tolower(key);
             switch (lowerKey)
             {
-            case 'w': if (lastDir != DOWN) dir = UP; break;     // W key
-            case 's': if (lastDir != UP) dir = DOWN; break;     // S key
-            case 'a': if (lastDir != RIGHT) dir = LEFT; break;  // A key
-            case 'd': if (lastDir != LEFT) dir = RIGHT; break;  // D key
-            case 'x': gameOver = true; break;                   // X to exit
-            case 'p': ShowPauseOverlay(); ClearScreen(); Draw(); break;  // P to pause
-            case 'm': ToggleMusic(); if (musicEnabled) PlayGameMusic(); break;  // M for music
+            case 'w': if (lastDir != DOWN) dir = UP; break;
+            case 's': if (lastDir != UP) dir = DOWN; break;
+            case 'a': if (lastDir != RIGHT) dir = LEFT; break;
+            case 'd': if (lastDir != LEFT) dir = RIGHT; break;
+            case 'x': gameOver = true; break;
+            case 'p': ShowPauseOverlay(); ClearScreen(); Draw(); break;
+            case 'm': ToggleMusic(); if (musicEnabled) PlayGameMusic(); break;
             }
         }
     }
@@ -714,6 +888,11 @@ void Logic()
         tailX[0] = headX; 
         tailY[0] = headY; 
     }
+    
+    // Store previous position for diagonal movement normalization
+    int prevHeadX = headX;
+    int prevHeadY = headY;
+    
     switch (dir)
     {
         case LEFT: headX--; break;
@@ -722,6 +901,7 @@ void Logic()
         case DOWN: headY++; break;
         case STOP: lastTailX = -1; lastTailY = -1; break;
     }
+    
     bool collided = false;
     if (borderWrap)
     {
@@ -743,6 +923,7 @@ void Logic()
         gameOver = true;
         if (score > highScore)
         {
+            highScorePlayerName = GetPlayerName();
             highScore = score;
             SaveHighScore();
         }
@@ -789,7 +970,7 @@ void Logic()
     }
 }
 
-//  Main Program
+// Main Program
 int main()
 {
     LoadHighScore();
@@ -809,7 +990,7 @@ int main()
             }
             StopGameMusic();
             PlayMenuMusic();
-            // Game Over screen
+            
             ClearScreen();
             SetColor(RED);
             GotoXY(width / 2 - 5, height / 2 - 2);
@@ -822,6 +1003,8 @@ int main()
                 SetColor(GREEN);
                 GotoXY(width / 2 - 12, height / 2 + 1);
                 cout << "NEW HIGH SCORE: " << highScore;
+                GotoXY(width / 2 - 12, height / 2 + 2);
+                cout << "Player: " << highScorePlayerName;
             }
             else
             {
@@ -835,9 +1018,10 @@ int main()
             ResetColor();
             getch();
             break;
-        case 1: ShowSettingsPage(); break;
-        case 2: ShowHighScorePage(); break;
-        case 3: StopAllMusic(); return 0;
+        case 1: ShowHelpPage(); break;
+        case 2: ShowSettingsPage(); break;
+        case 3: ShowHighScorePage(); break;
+        case 4: StopAllMusic(); return 0;
         }
     }
     return 0;
