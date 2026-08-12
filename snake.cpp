@@ -317,10 +317,10 @@ void ShowHelpPage()
     cout << "CONTROLS:";
     SetColor(GREEN);
     GotoXY(3, 10);
-    cout << "  Player 1: WASD keys (Green Snake)";
+    cout << "  Player 1: Arrow keys (Green Snake)";
     SetColor(CYAN);
     GotoXY(3, 11);
-    cout << "  Player 2: Arrow keys (Cyan Snake - 2P Mode)";
+    cout << "  Player 2: WASD keys (Cyan Snake - 2P Mode)";
     SetColor(WHITE);
     GotoXY(3, 12);
     cout << "  System Controls: P (Pause), M (Toggle Music), X (Exit round)";
@@ -529,7 +529,7 @@ int ShowMenu()
             
             SetColor(MAGENTA);
             GotoXY(width / 2 - 15, 24);
-            cout << "P1: WASD  |  P2: Arrow Keys";
+            cout << "P1: Arrow Keys  |  P2: WASD";
             GotoXY(width / 2 - 15, 25);
             cout << "Red Heart: +10 | Blue Diamond: Slow Time";
             
@@ -893,39 +893,42 @@ void Input()
         if (key == 0 || key == -32)
         {
             key = getch();
-            if (gameMode == MODE_SINGLE)
+            switch (key)
             {
-                switch (key)
-                {
-                case 72: if (p1.lastDir != DOWN) p1.dir = UP; break;
-                case 80: if (p1.lastDir != UP) p1.dir = DOWN; break;
-                case 75: if (p1.lastDir != RIGHT) p1.dir = LEFT; break;
-                case 77: if (p1.lastDir != LEFT) p1.dir = RIGHT; break;
-                }
-            }
-            else // MODE_MULTI: Arrow keys control Player 2
-            {
-                switch (key)
-                {
-                case 72: if (p2.lastDir != DOWN) p2.dir = UP; break;
-                case 80: if (p2.lastDir != UP) p2.dir = DOWN; break;
-                case 75: if (p2.lastDir != RIGHT) p2.dir = LEFT; break;
-                case 77: if (p2.lastDir != LEFT) p2.dir = RIGHT; break;
-                }
+            case 72: if (p1.lastDir != DOWN) p1.dir = UP; break;
+            case 80: if (p1.lastDir != UP) p1.dir = DOWN; break;
+            case 75: if (p1.lastDir != RIGHT) p1.dir = LEFT; break;
+            case 77: if (p1.lastDir != LEFT) p1.dir = RIGHT; break;
             }
         }
         else
         {
             char lowerKey = tolower(key);
-            switch (lowerKey)
+            if (gameMode == MODE_MULTI)
             {
-            case 'w': if (p1.lastDir != DOWN) p1.dir = UP; break;
-            case 's': if (p1.lastDir != UP) p1.dir = DOWN; break;
-            case 'a': if (p1.lastDir != RIGHT) p1.dir = LEFT; break;
-            case 'd': if (p1.lastDir != LEFT) p1.dir = RIGHT; break;
-            case 'x': gameOver = true; break;
-            case 'p': ShowPauseOverlay(); ClearScreen(); Draw(); break;
-            case 'm': ToggleMusic(); if (musicEnabled) PlayGameMusic(); break;
+                switch (lowerKey)
+                {
+                case 'w': if (p2.lastDir != DOWN) p2.dir = UP; break;
+                case 's': if (p2.lastDir != UP) p2.dir = DOWN; break;
+                case 'a': if (p2.lastDir != RIGHT) p2.dir = LEFT; break;
+                case 'd': if (p2.lastDir != LEFT) p2.dir = RIGHT; break;
+                case 'x': gameOver = true; break;
+                case 'p': ShowPauseOverlay(); ClearScreen(); Draw(); break;
+                case 'm': ToggleMusic(); if (musicEnabled) PlayGameMusic(); break;
+                }
+            }
+            else
+            {
+                switch (lowerKey)
+                {
+                case 'w': if (p1.lastDir != DOWN) p1.dir = UP; break;
+                case 's': if (p1.lastDir != UP) p1.dir = DOWN; break;
+                case 'a': if (p1.lastDir != RIGHT) p1.dir = LEFT; break;
+                case 'd': if (p1.lastDir != LEFT) p1.dir = RIGHT; break;
+                case 'x': gameOver = true; break;
+                case 'p': ShowPauseOverlay(); ClearScreen(); Draw(); break;
+                case 'm': ToggleMusic(); if (musicEnabled) PlayGameMusic(); break;
+                }
             }
         }
     }
@@ -1270,12 +1273,12 @@ int main()
             if (p1.isAlive && !p2.isAlive)
             {
                 SetColor(GREEN);
-                cout << "  PLAYER 1 WINS!   ";
+                cout << "  PLAYER 2 LOST!   ";
             }
             else if (p2.isAlive && !p1.isAlive)
             {
                 SetColor(CYAN);
-                cout << "  PLAYER 2 WINS!   ";
+                cout << "  PLAYER 1 LOST!   ";
             }
             else
             {
