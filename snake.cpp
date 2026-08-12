@@ -40,10 +40,73 @@ struct HighScoreEntry
     int score;
 };
 
+enum GameMode
+{
+    MODE_SINGLE = 0,
+    MODE_MULTI = 1
+};
+
+enum eDirection
+{
+    STOP = 0,
+    LEFT,
+    RIGHT,
+    UP,
+    DOWN
+};
+
+struct SnakePlayer
+{
+    int headX, headY;
+    int tailX[1000], tailY[1000];
+    int nTail;
+    int score;
+    eDirection dir;
+    eDirection lastDir;
+    bool isAlive;
+    int lastTailX, lastTailY;
+};
+
+// Global Settings
 bool borderWrap = false;
 bool rainbowTrail = true;
 int rainbowPhase = 0;
-void SetColor(ConsoleColor textColor, ConsoleColor bgColor);
+GameMode gameMode = MODE_SINGLE;
+
+// Global Game Variables
+bool gameOver;
+const int width = 40;
+const int height = 20;
+int fruitX, fruitY;
+
+// Players
+SnakePlayer p1, p2;
+
+// SPECIAL FRUIT VARIABLES
+int specialFruitX, specialFruitY;
+bool isSpecialFruitOnScreen = false;
+const int SPECIAL_FRUIT_SPAWN_CHANCE = 5;
+int fruitsEaten = 0;
+
+// SPEED VARIABLES
+bool isSlowTimeActive = false;
+int slowTimeDuration = 0;
+int originalGameSpeed = 110;
+const int SLOW_TIME_FRAMES = 83;
+int speedLevel = 1;
+
+int gameSpeed = 130;
+int frameCount = 0;
+int highScore = 0;
+string highScorePlayerName = "Player";
+
+// MUSIC VARIABLES
+bool musicEnabled = true;
+string menuMusicFile = "menu.mp3";
+string gameMusicFile = "game.mp3";
+
+// Function Declarations
+void SetColor(ConsoleColor textColor, ConsoleColor bgColor = BLACK);
 void ResetColor();
 void GotoXY(int x, int y);
 void ClearScreen();
@@ -66,15 +129,10 @@ void ShowSettingsPage();
 void ShowHighScorePage();
 void ShowHelpPage();
 int ShowMenu();
-string GetPlayerName();
-
-// MUSIC VARIABLES
-bool musicEnabled = true;
-string menuMusicFile = "menu.mp3";
-string gameMusicFile = "game.mp3";
+string GetPlayerName(string defaultName = "Player", string titleStr = "NEW HIGH SCORE!");
 
 // Console Utility Functions
-void SetColor(ConsoleColor textColor, ConsoleColor bgColor = BLACK)
+void SetColor(ConsoleColor textColor, ConsoleColor bgColor)
 {
     SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), (WORD)((bgColor << 4) | textColor));
 }
@@ -141,44 +199,6 @@ void ToggleMusic()
     if (!musicEnabled) StopAllMusic();
 }
 
-// Global Game Variables
-bool gameOver;
-const int width = 40;
-const int height = 20;
-int headX, headY, fruitX, fruitY, score;
-
-// SPECIAL FRUIT VARIABLES
-int specialFruitX, specialFruitY;
-bool isSpecialFruitOnScreen = false;
-const int SPECIAL_FRUIT_SPAWN_CHANCE = 5;
-int fruitsEaten = 0;
-
-// SPEED VARIABLES
-bool isSlowTimeActive = false;
-int slowTimeDuration = 0;
-int originalGameSpeed = 110;
-const int SLOW_TIME_FRAMES = 83;
-int speedLevel = 1;
-
-int tailX[1000], tailY[1000];
-int nTail;
-int gameSpeed = 130;
-int frameCount = 0;
-int highScore = 0;
-string highScorePlayerName = "Player";
-
-enum eDirection
-{
-    STOP = 0,
-    LEFT,
-    RIGHT,
-    UP,
-    DOWN
-};
-eDirection dir;
-eDirection lastDir;
-int lastTailX, lastTailY;
-
 // FILE I/O FUNCTIONS
 void LoadHighScore()
 {
@@ -211,26 +231,22 @@ void SaveHighScore()
 }
 
 // GET PLAYER NAME FUNCTION
-string GetPlayerName()
+string GetPlayerName(string defaultName, string titleStr)
 {
     ClearScreen();
     SetColor(YELLOW);
     GotoXY(width / 2 - 12, 8);
     cout << "==========================";
     GotoXY(width / 2 - 12, 9);
-    cout << "   NEW HIGH SCORE!!!   ";
+    cout << "   " << titleStr << "   ";
     GotoXY(width / 2 - 12, 10);
     cout << "==========================";
     
-    SetColor(GREEN);
-    GotoXY(width / 2 - 10, 12);
-    cout << "Score: " << score;
-    
     SetColor(CYAN);
-    GotoXY(width / 2 - 15, 15);
-    cout << "Enter your name (max 20 chars):";
+    GotoXY(width / 2 - 15, 14);
+    cout << "Enter player name (max 20 chars):";
     
-    GotoXY(width / 2 - 10, 17);
+    GotoXY(width / 2 - 10, 16);
     SetColor(WHITE);
     
     // Enable cursor
@@ -253,16 +269,16 @@ string GetPlayerName()
         else if (ch == 8 && name.length() > 0) // Backspace
         {
             name.pop_back();
-            GotoXY(width / 2 - 10, 17);
+            GotoXY(width / 2 - 10, 16);
             cout << string(20, ' ');
-            GotoXY(width / 2 - 10, 17);
+            GotoXY(width / 2 - 10, 16);
             cout << name;
         }
         else if (name.length() < 20 && ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || 
                  (ch >= '0' && ch <= '9') || ch == ' ' || ch == '_'))
         {
             name += ch;
-            GotoXY(width / 2 - 10, 17);
+            GotoXY(width / 2 - 10, 16);
             cout << name;
         }
     }
@@ -272,7 +288,7 @@ string GetPlayerName()
     SetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &cursorInfo);
     
     ResetColor();
-    return name.empty() ? "Player" : name;
+    return name.empty() ? defaultName : name;
 }
 
 // HELP PAGE
@@ -280,60 +296,58 @@ void ShowHelpPage()
 {
     ClearScreen();
     SetColor(CYAN);
-    GotoXY(width / 2 - 10, 2);
+    GotoXY(width / 2 - 10, 1);
     cout << "====================";
-    GotoXY(width / 2 - 10, 3);
+    GotoXY(width / 2 - 10, 2);
     cout << "   GAME HELP PAGE  ";
-    GotoXY(width / 2 - 10, 4);
+    GotoXY(width / 2 - 10, 3);
     cout << "====================";
     
     SetColor(YELLOW);
-    GotoXY(5, 6);
+    GotoXY(3, 5);
     cout << "OBJECTIVE:";
     SetColor(WHITE);
-    GotoXY(5, 7);
+    GotoXY(3, 6);
     cout << "  Eat fruits to grow your snake and score points!";
-    GotoXY(5, 8);
-    cout << "  Avoid hitting walls (if Border Wrap is OFF) and yourself.";
+    GotoXY(3, 7);
+    cout << "  In 2P mode, outlast your opponent or get the higher score!";
     
     SetColor(YELLOW);
-    GotoXY(5, 10);
+    GotoXY(3, 9);
     cout << "CONTROLS:";
+    SetColor(GREEN);
+    GotoXY(3, 10);
+    cout << "  Player 1: Arrow keys (Green Snake)";
+    SetColor(CYAN);
+    GotoXY(3, 11);
+    cout << "  Player 2: WASD keys (Cyan Snake - 2P Mode)";
     SetColor(WHITE);
-    GotoXY(5, 11);
-    cout << "  Arrow Keys or WASD - Move the snake";
-    GotoXY(5, 12);
-    cout << "  P - Pause the game";
-    GotoXY(5, 13);
-    cout << "  X - Exit to main menu";
-    GotoXY(5, 14);
-    cout << "  M - Toggle music on/off";
+    GotoXY(3, 12);
+    cout << "  System Controls: P (Pause), M (Toggle Music), X (Exit round)";
     
     SetColor(YELLOW);
-    GotoXY(5, 16);
+    GotoXY(3, 14);
     cout << "SPECIAL ITEMS:";
     SetColor(RED);
-    GotoXY(5, 17);
+    GotoXY(3, 15);
     cout << "  ♥ Red Heart - Normal fruit (+10 points, grows snake)";
     SetColor(BLUE);
-    GotoXY(5, 18);
-    cout << "  ♦ Blue Diamond - Slow Time effect (temporary speed reduction)";
+    GotoXY(3, 16);
+    cout << "  ♦ Blue Diamond - Slow Time effect";
     
     SetColor(YELLOW);
-    GotoXY(5, 20);
-    cout << "FEATURES:";
+    GotoXY(3, 18);
+    cout << "MULTIPLAYER RULES:";
     SetColor(WHITE);
-    GotoXY(5, 21);
-    cout << "  - Speed increases every 5 fruits eaten";
-    GotoXY(5, 22);
-    cout << "  - Rainbow Trail mode for colorful snake";
-    GotoXY(5, 23);
-    cout << "  - Border Wrap to teleport through walls";
-    GotoXY(5, 24);
-    cout << "  - High score tracking with player names";
+    GotoXY(3, 19);
+    cout << "  - Avoid hitting walls (if Border Wrap is OFF)";
+    GotoXY(3, 20);
+    cout << "  - Avoid hitting your own body or opponent's body";
+    GotoXY(3, 21);
+    cout << "  - Head-on collision eliminates both players!";
     
     SetColor(GREY);
-    GotoXY(width / 2 - 15, 27);
+    GotoXY(width / 2 - 15, 24);
     cout << "Press ESC to return to menu";
     ResetColor();
     
@@ -472,8 +486,8 @@ int ShowMenu()
     PlayMenuMusic();
     int selectedOption = 0;
     int lastSelectedOption = -1;
-    const int numOptions = 5;
-    string menuOptions[numOptions] = { "Start Game", "Help", "Settings", "High Score", "Quit Game" };
+    const int numOptions = 6;
+    string menuOptions[numOptions] = { "1 Player Mode", "2 Player Mode", "Help", "Settings", "High Score", "Quit Game" };
     
     while (true)
     {
@@ -481,20 +495,20 @@ int ShowMenu()
         {
             lastSelectedOption = selectedOption;
             SetColor(GREEN);
-            GotoXY(width / 2 - 10, 5);
+            GotoXY(width / 2 - 10, 4);
             cout << "====================";
-            GotoXY(width / 2 - 10, 6);
+            GotoXY(width / 2 - 10, 5);
             cout << "   SNAKE GAME++    ";
-            GotoXY(width / 2 - 10, 7);
+            GotoXY(width / 2 - 10, 6);
             cout << "====================";
             
             SetColor(YELLOW);
-            GotoXY(width / 2 - 10, 9);
+            GotoXY(width / 2 - 10, 8);
             cout << "High Score: " << highScore;
             
             for (int i = 0; i < numOptions; i++)
             {
-                GotoXY(width / 2 - 10, 12 + i * 2);
+                GotoXY(width / 2 - 10, 11 + i * 2);
                 if (i == selectedOption)
                 {
                     SetColor(BLACK, WHITE);
@@ -515,9 +529,9 @@ int ShowMenu()
             
             SetColor(MAGENTA);
             GotoXY(width / 2 - 15, 24);
-            cout << "Red Heart = +10 points";
+            cout << "P1: Arrow Keys  |  P2: WASD";
             GotoXY(width / 2 - 15, 25);
-            cout << "Blue Diamond = Slow Time";
+            cout << "Red Heart: +10 | Blue Diamond: Slow Time";
             
             SetColor(GREY);
             GotoXY(width / 2 - 18, 27);
@@ -638,47 +652,62 @@ void Setup()
     SetConsoleOutputCP(65001);
     srand(static_cast<unsigned int>(time(0)));
     gameOver = false;
-    dir = RIGHT;
-    lastDir = RIGHT;
-    headX = width / 2; 
-    headY = height / 2;
     
-    nTail = 2;
-    tailX[0] = headX - 1;
-    tailY[0] = headY;
-    tailX[1] = headX - 2;
-    tailY[1] = headY;
+    // Player 1 Setup
+    p1.isAlive = true;
+    p1.dir = RIGHT;
+    p1.lastDir = RIGHT;
+    p1.headX = (gameMode == MODE_MULTI) ? (width / 4) : (width / 2);
+    p1.headY = height / 2;
+    p1.nTail = 2;
+    p1.tailX[0] = p1.headX - 1; p1.tailY[0] = p1.headY;
+    p1.tailX[1] = p1.headX - 2; p1.tailY[1] = p1.headY;
+    p1.score = 0;
+    p1.lastTailX = -1; p1.lastTailY = -1;
+
+    // Player 2 Setup
+    if (gameMode == MODE_MULTI)
+    {
+        p2.isAlive = true;
+        p2.dir = LEFT;
+        p2.lastDir = LEFT;
+        p2.headX = (3 * width) / 4;
+        p2.headY = height / 2;
+        p2.nTail = 2;
+        p2.tailX[0] = p2.headX + 1; p2.tailY[0] = p2.headY;
+        p2.tailX[1] = p2.headX + 2; p2.tailY[1] = p2.headY;
+        p2.score = 0;
+        p2.lastTailX = -1; p2.lastTailY = -1;
+    }
+    else
+    {
+        p2.isAlive = false;
+        p2.nTail = 0;
+    }
     
-    fruitX = rand() % width; 
-    fruitY = rand() % height;
-    
+    // Spawn Fruit
     bool validPos = false;
     while (!validPos)
     {
         validPos = true;
-        if ((fruitX == headX && fruitY == headY))
-            validPos = false;
-        for (int i = 0; i < nTail; i++)
+        fruitX = rand() % width; 
+        fruitY = rand() % height;
+        
+        if (fruitX == p1.headX && fruitY == p1.headY) validPos = false;
+        for (int i = 0; i < p1.nTail; i++)
+            if (p1.tailX[i] == fruitX && p1.tailY[i] == fruitY) validPos = false;
+            
+        if (gameMode == MODE_MULTI)
         {
-            if (tailX[i] == fruitX && tailY[i] == fruitY)
-            {
-                validPos = false;
-                break;
-            }
-        }
-        if (!validPos)
-        {
-            fruitX = rand() % width;
-            fruitY = rand() % height;
+            if (fruitX == p2.headX && fruitY == p2.headY) validPos = false;
+            for (int i = 0; i < p2.nTail; i++)
+                if (p2.tailX[i] == fruitX && p2.tailY[i] == fruitY) validPos = false;
         }
     }
     
-    score = 0; 
     speedLevel = 1; 
     gameSpeed = originalGameSpeed; 
     frameCount = 0;
-    lastTailX = -1; 
-    lastTailY = -1;
     isSpecialFruitOnScreen = false; 
     isSlowTimeActive = false; 
     slowTimeDuration = 0;
@@ -688,6 +717,7 @@ void Setup()
     GetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &cursorInfo);
     cursorInfo.bVisible = false;
     SetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &cursorInfo);
+    
     ClearScreen();
     SetColor(DARKGREY);
     for (int i = 0; i < width + 2; i++)
@@ -710,43 +740,72 @@ void Draw()
     SetColor(DARKGREY);
     for (int i = 0; i < width + 2; i++)
     {
-        GotoXY(i, 0);
-        cout << "█";
-        GotoXY(i, height + 1);
-        cout << "█";
+        GotoXY(i, 0); cout << "█";
+        GotoXY(i, height + 1); cout << "█";
     }
     for (int i = 0; i < height + 2; i++)
     {
-        GotoXY(0, i);
-        cout << "█";
-        GotoXY(width + 1, i);
-        cout << "█";
+        GotoXY(0, i); cout << "█";
+        GotoXY(width + 1, i); cout << "█";
     }
     ResetColor();
 
-    if (lastTailX != -1)
+    // Erase last tail segment P1
+    if (p1.lastTailX != -1)
     {
-        GotoXY(lastTailX + 1, lastTailY + 1); 
+        GotoXY(p1.lastTailX + 1, p1.lastTailY + 1); 
         cout << " "; 
-        lastTailX = -1;
+        p1.lastTailX = -1;
     }
-    GotoXY(headX + 1, headY + 1);
-    char headChar;
-    if (dir == UP) headChar = '^';
-    else if (dir == DOWN) headChar = 'v';
-    else if (dir == LEFT) headChar = '<';
-    else if (dir == RIGHT) headChar = '>';
-    else headChar = '@';
-    if (frameCount % 2 == 0) SetColor(GREEN, BLACK);
-    else if (isSlowTimeActive) SetColor(CYAN, BLACK);
-    else SetColor(YELLOW, BLACK);
-    cout << headChar; 
-    frameCount++;
-    if (nTail > 0)
+    // Erase last tail segment P2
+    if (gameMode == MODE_MULTI && p2.lastTailX != -1)
     {
-        for (int i = 0; i < nTail; i++)
+        GotoXY(p2.lastTailX + 1, p2.lastTailY + 1);
+        cout << " ";
+        p2.lastTailX = -1;
+    }
+
+    // Draw P1 Head
+    if (p1.isAlive)
+    {
+        GotoXY(p1.headX + 1, p1.headY + 1);
+        char headChar1;
+        if (p1.dir == UP) headChar1 = '^';
+        else if (p1.dir == DOWN) headChar1 = 'v';
+        else if (p1.dir == LEFT) headChar1 = '<';
+        else if (p1.dir == RIGHT) headChar1 = '>';
+        else headChar1 = '@';
+
+        if (frameCount % 2 == 0) SetColor(GREEN, BLACK);
+        else if (isSlowTimeActive) SetColor(CYAN, BLACK);
+        else SetColor(YELLOW, BLACK);
+        cout << headChar1;
+    }
+
+    // Draw P2 Head
+    if (gameMode == MODE_MULTI && p2.isAlive)
+    {
+        GotoXY(p2.headX + 1, p2.headY + 1);
+        char headChar2;
+        if (p2.dir == UP) headChar2 = '^';
+        else if (p2.dir == DOWN) headChar2 = 'v';
+        else if (p2.dir == LEFT) headChar2 = '<';
+        else if (p2.dir == RIGHT) headChar2 = '>';
+        else headChar2 = 'P';
+
+        if (frameCount % 2 == 0) SetColor(CYAN, BLACK);
+        else if (isSlowTimeActive) SetColor(MAGENTA, BLACK);
+        else SetColor(MAGENTA, BLACK);
+        cout << headChar2;
+    }
+    frameCount++;
+
+    // Draw P1 Tail
+    if (p1.isAlive && p1.nTail > 0)
+    {
+        for (int i = 0; i < p1.nTail; i++)
         {
-            GotoXY(tailX[i] + 1, tailY[i] + 1);
+            GotoXY(p1.tailX[i] + 1, p1.tailY[i] + 1);
             if (rainbowTrail)
             {
                 int colorCycle = (rainbowPhase + i) % 6;
@@ -766,11 +825,25 @@ void Draw()
         ResetColor(); 
         rainbowPhase = (rainbowPhase + 1) % 6;
     }
-    ResetColor();
+
+    // Draw P2 Tail
+    if (gameMode == MODE_MULTI && p2.isAlive && p2.nTail > 0)
+    {
+        for (int i = 0; i < p2.nTail; i++)
+        {
+            GotoXY(p2.tailX[i] + 1, p2.tailY[i] + 1);
+            SetColor(CYAN);
+            cout << "x";
+        }
+        ResetColor();
+    }
+
+    // Draw Fruit
     GotoXY(fruitX + 1, fruitY + 1); 
     SetColor(RED); 
     cout << "♥"; 
     ResetColor();
+
     if (isSpecialFruitOnScreen) 
     { 
         GotoXY(specialFruitX + 1, specialFruitY + 1); 
@@ -778,17 +851,37 @@ void Draw()
         cout << "♦"; 
         ResetColor(); 
     }
+
+    // Bottom Status Line
     GotoXY(0, height + 2); 
-    SetColor(YELLOW);
-    cout << "Score: " << score << " | High Score: " << highScore;
-    cout << " | Speed Level: " << speedLevel;
-    if (isSlowTimeActive)
-    { 
-        SetColor(CYAN); 
-        cout << " | STATUS: SLOW TIME (" << slowTimeDuration / (1000 / originalGameSpeed) << "s)"; 
+    if (gameMode == MODE_SINGLE)
+    {
+        SetColor(YELLOW);
+        cout << "Score: " << p1.score << " | High Score: " << highScore;
+        cout << " | Speed: Lvl " << speedLevel;
+        if (isSlowTimeActive)
+        { 
+            SetColor(CYAN); 
+            cout << " | SLOW TIME"; 
+        }
+        SetColor(GREY); 
+        cout << " | Music: " << (musicEnabled ? "ON " : "OFF");
     }
-    SetColor(GREY); 
-    cout << " | Music: " << (musicEnabled ? "ON" : "OFF") << "  "; 
+    else // MODE_MULTI
+    {
+        SetColor(GREEN);
+        cout << "P1 Score: " << p1.score << " ";
+        SetColor(WHITE);
+        cout << "| ";
+        SetColor(CYAN);
+        cout << "P2 Score: " << p2.score << " ";
+        SetColor(WHITE);
+        cout << "| ";
+        SetColor(YELLOW);
+        cout << "High: " << highScore << " ";
+        SetColor(GREY);
+        cout << "| Lvl " << speedLevel;
+    }
     ResetColor();
 }
 
@@ -802,24 +895,40 @@ void Input()
             key = getch();
             switch (key)
             {
-            case 72: if (lastDir != DOWN) dir = UP; break;
-            case 80: if (lastDir != UP) dir = DOWN; break;
-            case 75: if (lastDir != RIGHT) dir = LEFT; break;
-            case 77: if (lastDir != LEFT) dir = RIGHT; break;
+            case 72: if (p1.lastDir != DOWN) p1.dir = UP; break;
+            case 80: if (p1.lastDir != UP) p1.dir = DOWN; break;
+            case 75: if (p1.lastDir != RIGHT) p1.dir = LEFT; break;
+            case 77: if (p1.lastDir != LEFT) p1.dir = RIGHT; break;
             }
         }
         else
         {
             char lowerKey = tolower(key);
-            switch (lowerKey)
+            if (gameMode == MODE_MULTI)
             {
-            case 'w': if (lastDir != DOWN) dir = UP; break;
-            case 's': if (lastDir != UP) dir = DOWN; break;
-            case 'a': if (lastDir != RIGHT) dir = LEFT; break;
-            case 'd': if (lastDir != LEFT) dir = RIGHT; break;
-            case 'x': gameOver = true; break;
-            case 'p': ShowPauseOverlay(); ClearScreen(); Draw(); break;
-            case 'm': ToggleMusic(); if (musicEnabled) PlayGameMusic(); break;
+                switch (lowerKey)
+                {
+                case 'w': if (p2.lastDir != DOWN) p2.dir = UP; break;
+                case 's': if (p2.lastDir != UP) p2.dir = DOWN; break;
+                case 'a': if (p2.lastDir != RIGHT) p2.dir = LEFT; break;
+                case 'd': if (p2.lastDir != LEFT) p2.dir = RIGHT; break;
+                case 'x': gameOver = true; break;
+                case 'p': ShowPauseOverlay(); ClearScreen(); Draw(); break;
+                case 'm': ToggleMusic(); if (musicEnabled) PlayGameMusic(); break;
+                }
+            }
+            else
+            {
+                switch (lowerKey)
+                {
+                case 'w': if (p1.lastDir != DOWN) p1.dir = UP; break;
+                case 's': if (p1.lastDir != UP) p1.dir = DOWN; break;
+                case 'a': if (p1.lastDir != RIGHT) p1.dir = LEFT; break;
+                case 'd': if (p1.lastDir != LEFT) p1.dir = RIGHT; break;
+                case 'x': gameOver = true; break;
+                case 'p': ShowPauseOverlay(); ClearScreen(); Draw(); break;
+                case 'm': ToggleMusic(); if (musicEnabled) PlayGameMusic(); break;
+                }
             }
         }
     }
@@ -837,12 +946,21 @@ void SpawnSpecialFruit()
             validPos = true;
             specialFruitX = rand() % width;
             specialFruitY = rand() % height;
-            if ((specialFruitX == headX && specialFruitY == headY) ||
+            
+            if ((specialFruitX == p1.headX && specialFruitY == p1.headY) ||
                 (specialFruitX == fruitX && specialFruitY == fruitY))
                 validPos = false;
-            for (int i = 0; i < nTail; i++)
-                if (tailX[i] == specialFruitX && tailY[i] == specialFruitY)
+            for (int i = 0; i < p1.nTail; i++)
+                if (p1.tailX[i] == specialFruitX && p1.tailY[i] == specialFruitY)
                     validPos = false;
+                    
+            if (gameMode == MODE_MULTI)
+            {
+                if (specialFruitX == p2.headX && specialFruitY == p2.headY) validPos = false;
+                for (int i = 0; i < p2.nTail; i++)
+                    if (p2.tailX[i] == specialFruitX && p2.tailY[i] == specialFruitY)
+                        validPos = false;
+            }
         } while (!validPos);
     }
 }
@@ -856,7 +974,9 @@ void ApplySlowTimeEffect()
 
 void Logic()
 {
-    lastDir = dir;
+    p1.lastDir = p1.dir;
+    if (gameMode == MODE_MULTI) p2.lastDir = p2.dir;
+
     if (isSlowTimeActive)
     {
         slowTimeDuration--;
@@ -866,72 +986,175 @@ void Logic()
             gameSpeed = originalGameSpeed;
         }
     }
-    originalGameSpeed = max(120 - (score / 50) * 10, 10);
+    
+    int currentMaxScore = max(p1.score, p2.score);
+    originalGameSpeed = max(120 - (currentMaxScore / 50) * 10, 10);
     if (!isSlowTimeActive) gameSpeed = originalGameSpeed;
-    if (nTail > 0) 
-    { 
-        lastTailX = tailX[nTail - 1]; 
-        lastTailY = tailY[nTail - 1]; 
-    }
-    else 
-    { 
-        lastTailX = headX; 
-        lastTailY = headY; 
-    }
-    for (int i = nTail - 1; i > 0; i--) 
-    { 
-        tailX[i] = tailX[i - 1]; 
-        tailY[i] = tailY[i - 1]; 
-    }
-    if (nTail > 0) 
-    { 
-        tailX[0] = headX; 
-        tailY[0] = headY; 
-    }
-    
-    // Store previous position for diagonal movement normalization
-    int prevHeadX = headX;
-    int prevHeadY = headY;
-    
-    switch (dir)
+
+    // --- PLAYER 1 TAIL UPDATE ---
+    if (p1.isAlive)
     {
-        case LEFT: headX--; break;
-        case RIGHT: headX++; break;
-        case UP: headY--; break;
-        case DOWN: headY++; break;
-        case STOP: lastTailX = -1; lastTailY = -1; break;
-    }
-    
-    bool collided = false;
-    if (borderWrap)
-    {
-        if (headX < 0) headX = width - 1;
-        else if (headX >= width) headX = 0;
-        if (headY < 0) headY = height - 1;
-        else if (headY >= height) headY = 0;
-    }
-    else
-    {
-        if (headX < 0 || headX >= width || headY < 0 || headY >= height) collided = true;
-    }
-    for (int i = 0; i < nTail; i++)
-    {
-        if (tailX[i] == headX && tailY[i] == headY) collided = true;
-    }
-    if (collided)
-    {
-        gameOver = true;
-        if (score > highScore)
+        if (p1.nTail > 0)
         {
-            highScorePlayerName = GetPlayerName();
-            highScore = score;
-            SaveHighScore();
+            p1.lastTailX = p1.tailX[p1.nTail - 1];
+            p1.lastTailY = p1.tailY[p1.nTail - 1];
+        }
+        else
+        {
+            p1.lastTailX = p1.headX;
+            p1.lastTailY = p1.headY;
+        }
+        for (int i = p1.nTail - 1; i > 0; i--)
+        {
+            p1.tailX[i] = p1.tailX[i - 1];
+            p1.tailY[i] = p1.tailY[i - 1];
+        }
+        if (p1.nTail > 0)
+        {
+            p1.tailX[0] = p1.headX;
+            p1.tailY[0] = p1.headY;
+        }
+
+        switch (p1.dir)
+        {
+        case LEFT: p1.headX--; break;
+        case RIGHT: p1.headX++; break;
+        case UP: p1.headY--; break;
+        case DOWN: p1.headY++; break;
+        case STOP: p1.lastTailX = -1; p1.lastTailY = -1; break;
         }
     }
-    if (headX == fruitX && headY == fruitY)
+
+    // --- PLAYER 2 TAIL UPDATE ---
+    if (gameMode == MODE_MULTI && p2.isAlive)
     {
-        score += 10; 
-        nTail++; 
+        if (p2.nTail > 0)
+        {
+            p2.lastTailX = p2.tailX[p2.nTail - 1];
+            p2.lastTailY = p2.tailY[p2.nTail - 1];
+        }
+        else
+        {
+            p2.lastTailX = p2.headX;
+            p2.lastTailY = p2.headY;
+        }
+        for (int i = p2.nTail - 1; i > 0; i--)
+        {
+            p2.tailX[i] = p2.tailX[i - 1];
+            p2.tailY[i] = p2.tailY[i - 1];
+        }
+        if (p2.nTail > 0)
+        {
+            p2.tailX[0] = p2.headX;
+            p2.tailY[0] = p2.headY;
+        }
+
+        switch (p2.dir)
+        {
+        case LEFT: p2.headX--; break;
+        case RIGHT: p2.headX++; break;
+        case UP: p2.headY--; break;
+        case DOWN: p2.headY++; break;
+        case STOP: p2.lastTailX = -1; p2.lastTailY = -1; break;
+        }
+    }
+
+    // --- PLAYER 1 BOUNDS & COLLISIONS ---
+    if (p1.isAlive)
+    {
+        if (borderWrap)
+        {
+            if (p1.headX < 0) p1.headX = width - 1;
+            else if (p1.headX >= width) p1.headX = 0;
+            if (p1.headY < 0) p1.headY = height - 1;
+            else if (p1.headY >= height) p1.headY = 0;
+        }
+        else
+        {
+            if (p1.headX < 0 || p1.headX >= width || p1.headY < 0 || p1.headY >= height)
+                p1.isAlive = false;
+        }
+        for (int i = 0; i < p1.nTail; i++)
+        {
+            if (p1.tailX[i] == p1.headX && p1.tailY[i] == p1.headY)
+                p1.isAlive = false;
+        }
+    }
+
+    // --- PLAYER 2 BOUNDS & COLLISIONS ---
+    if (gameMode == MODE_MULTI && p2.isAlive)
+    {
+        if (borderWrap)
+        {
+            if (p2.headX < 0) p2.headX = width - 1;
+            else if (p2.headX >= width) p2.headX = 0;
+            if (p2.headY < 0) p2.headY = height - 1;
+            else if (p2.headY >= height) p2.headY = 0;
+        }
+        else
+        {
+            if (p2.headX < 0 || p2.headX >= width || p2.headY < 0 || p2.headY >= height)
+                p2.isAlive = false;
+        }
+        for (int i = 0; i < p2.nTail; i++)
+        {
+            if (p2.tailX[i] == p2.headX && p2.tailY[i] == p2.headY)
+                p2.isAlive = false;
+        }
+    }
+
+    // --- INTER-PLAYER COLLISIONS ---
+    if (gameMode == MODE_MULTI && p1.isAlive && p2.isAlive)
+    {
+        // Head-on collision
+        if (p1.headX == p2.headX && p1.headY == p2.headY)
+        {
+            p1.isAlive = false;
+            p2.isAlive = false;
+        }
+        // P1 head hits P2 body
+        for (int i = 0; i < p2.nTail; i++)
+        {
+            if (p2.tailX[i] == p1.headX && p2.tailY[i] == p1.headY)
+                p1.isAlive = false;
+        }
+        // P2 head hits P1 body
+        for (int i = 0; i < p1.nTail; i++)
+        {
+            if (p1.tailX[i] == p2.headX && p1.tailY[i] == p2.headY)
+                p2.isAlive = false;
+        }
+    }
+
+    // Check game over
+    if (gameMode == MODE_SINGLE)
+    {
+        if (!p1.isAlive) gameOver = true;
+    }
+    else // MODE_MULTI
+    {
+        if (!p1.isAlive || !p2.isAlive) gameOver = true;
+    }
+
+    if (gameOver) return;
+
+    // --- FRUIT EATING LOGIC ---
+    bool fruitEaten = false;
+    if (p1.isAlive && p1.headX == fruitX && p1.headY == fruitY)
+    {
+        p1.score += 10;
+        p1.nTail++;
+        fruitEaten = true;
+    }
+    else if (gameMode == MODE_MULTI && p2.isAlive && p2.headX == fruitX && p2.headY == fruitY)
+    {
+        p2.score += 10;
+        p2.nTail++;
+        fruitEaten = true;
+    }
+
+    if (fruitEaten)
+    {
         fruitsEaten++;
         if (fruitsEaten % 5 == 0 && originalGameSpeed > 40)
         {
@@ -940,33 +1163,44 @@ void Logic()
             speedLevel++;
         }
         SpawnSpecialFruit();
+
         bool validPos;
         do
         {
             validPos = true;
             fruitX = rand() % width;
             fruitY = rand() % height;
-            if ((fruitX == specialFruitX && fruitY == specialFruitY) && isSpecialFruitOnScreen)
+            if (isSpecialFruitOnScreen && fruitX == specialFruitX && fruitY == specialFruitY)
                 validPos = false;
-            if (fruitX == headX && fruitY == headY) validPos = false;
-            for (int i = 0; i < nTail; i++)
+            if (fruitX == p1.headX && fruitY == p1.headY) validPos = false;
+            for (int i = 0; i < p1.nTail; i++)
+                if (p1.tailX[i] == fruitX && p1.tailY[i] == fruitY) validPos = false;
+
+            if (gameMode == MODE_MULTI)
             {
-                if (tailX[i] == fruitX && tailY[i] == fruitY)
-                {
-                    validPos = false;
-                    break;
-                }
+                if (fruitX == p2.headX && fruitY == p2.headY) validPos = false;
+                for (int i = 0; i < p2.nTail; i++)
+                    if (p2.tailX[i] == fruitX && p2.tailY[i] == fruitY) validPos = false;
             }
         } while (!validPos);
     }
-    if (isSpecialFruitOnScreen && headX == specialFruitX && headY == specialFruitY)
+
+    // Special fruit check
+    if (isSpecialFruitOnScreen)
     {
-        isSpecialFruitOnScreen = false;
-        ApplySlowTimeEffect();
-        GotoXY(specialFruitX + 1, specialFruitY + 1);
-        cout << " ";
-        specialFruitX = -1;
-        specialFruitY = -1;
+        bool specialEaten = false;
+        if (p1.isAlive && p1.headX == specialFruitX && p1.headY == specialFruitY) specialEaten = true;
+        if (gameMode == MODE_MULTI && p2.isAlive && p2.headX == specialFruitX && p2.headY == specialFruitY) specialEaten = true;
+
+        if (specialEaten)
+        {
+            isSpecialFruitOnScreen = false;
+            ApplySlowTimeEffect();
+            GotoXY(specialFruitX + 1, specialFruitY + 1);
+            cout << " ";
+            specialFruitX = -1;
+            specialFruitY = -1;
+        }
     }
 }
 
@@ -979,7 +1213,8 @@ int main()
         int menuChoice = ShowMenu();
         switch (menuChoice)
         {
-        case 0: // Start Game
+        case 0: // 1 Player Mode
+            gameMode = MODE_SINGLE;
             Setup();
             while (!gameOver)
             {
@@ -997,31 +1232,94 @@ int main()
             cout << "GAME OVER!";
             SetColor(YELLOW);
             GotoXY(width / 2 - 8, height / 2);
-            cout << "Final Score: " << score;
-            if (score == highScore && score > 0)
+            cout << "Final Score: " << p1.score;
+            if (p1.score > highScore && p1.score > 0)
             {
-                SetColor(GREEN);
-                GotoXY(width / 2 - 12, height / 2 + 1);
-                cout << "NEW HIGH SCORE: " << highScore;
-                GotoXY(width / 2 - 12, height / 2 + 2);
-                cout << "Player: " << highScorePlayerName;
+                highScore = p1.score;
+                highScorePlayerName = GetPlayerName("Player", "NEW HIGH SCORE!");
+                SaveHighScore();
             }
             else
             {
                 SetColor(CYAN);
                 GotoXY(width / 2 - 12, height / 2 + 1);
                 cout << "Current High Score: " << highScore;
+                SetColor(GREY);
+                GotoXY(width / 2 - 12, height / 2 + 3);
+                cout << "Press any key to continue...";
+                ResetColor();
+                getch();
             }
-            SetColor(GREY);
-            GotoXY(width / 2 - 12, height / 2 + 3);
-            cout << "Press any key to continue...";
-            ResetColor();
-            getch();
             break;
-        case 1: ShowHelpPage(); break;
-        case 2: ShowSettingsPage(); break;
-        case 3: ShowHighScorePage(); break;
-        case 4: StopAllMusic(); return 0;
+
+        case 1: // 2 Player Mode
+            gameMode = MODE_MULTI;
+            Setup();
+            while (!gameOver)
+            {
+                Input();
+                Logic();
+                Draw();
+                Sleep(gameSpeed);
+            }
+            StopGameMusic();
+            PlayMenuMusic();
+
+            ClearScreen();
+            SetColor(YELLOW);
+            GotoXY(width / 2 - 10, height / 2 - 4);
+            cout << "====================";
+            GotoXY(width / 2 - 10, height / 2 - 3);
+            if (p1.isAlive && !p2.isAlive)
+            {
+                SetColor(GREEN);
+                cout << "  PLAYER 2 LOST!   ";
+            }
+            else if (p2.isAlive && !p1.isAlive)
+            {
+                SetColor(CYAN);
+                cout << "  PLAYER 1 LOST!   ";
+            }
+            else
+            {
+                SetColor(YELLOW);
+                cout << "    IT'S A DRAW!   ";
+            }
+            SetColor(YELLOW);
+            GotoXY(width / 2 - 10, height / 2 - 2);
+            cout << "====================";
+
+            SetColor(GREEN);
+            GotoXY(width / 2 - 10, height / 2);
+            cout << "Player 1 Score: " << p1.score;
+            SetColor(CYAN);
+            GotoXY(width / 2 - 10, height / 2 + 1);
+            cout << "Player 2 Score: " << p2.score;
+
+            int maxScore;
+            maxScore = max(p1.score, p2.score);
+            if (maxScore > highScore && maxScore > 0)
+            {
+                highScore = maxScore;
+                string winnerTitle = (p1.score > p2.score) ? "P1 HIGH SCORE!" : "P2 HIGH SCORE!";
+                if (p1.score == p2.score) winnerTitle = "NEW HIGH SCORE!";
+                highScorePlayerName = GetPlayerName("Player", winnerTitle);
+                SaveHighScore();
+            }
+            else
+            {
+                SetColor(GREY);
+                GotoXY(width / 2 - 12, height / 2 + 3);
+                cout << "Press any key to continue...";
+                ResetColor();
+                getch();
+            }
+            break;
+
+        case 2: ShowHelpPage(); break;
+        case 3: ShowSettingsPage(); break;
+        case 4: ShowHighScorePage(); break;
+        case 5: StopAllMusic(); return 0;
         }
     }
     return 0;
