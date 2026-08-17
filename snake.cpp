@@ -183,11 +183,13 @@ struct Snake
     eDirection dir;
     eDirection lastDir;
     int lastTailX, lastTailY;
+    bool isAlive;
 };
 
-// Single source of truth: how many snakes are in play.
-const int NUM_SNAKES = 1;
-Snake snakes[NUM_SNAKES];
+// Single source of truth: how many snakes are in play (1 or 2, chosen at the menu).
+const int MAX_SNAKES = 2;
+int numSnakes = 1;
+Snake snakes[MAX_SNAKES];
 
 // FILE I/O FUNCTIONS
 void LoadHighScore()
@@ -482,8 +484,8 @@ int ShowMenu()
     PlayMenuMusic();
     int selectedOption = 0;
     int lastSelectedOption = -1;
-    const int numOptions = 5;
-    string menuOptions[numOptions] = { "Start Game", "Help", "Settings", "High Score", "Quit Game" };
+    const int numOptions = 6;
+    string menuOptions[numOptions] = { "1 Player", "2 Player", "Help", "Settings", "High Score", "Quit Game" };
     
     while (true)
     {
@@ -649,18 +651,32 @@ void Setup()
     srand(static_cast<unsigned int>(time(0)));
     gameOver = false;
 
-    for (int s = 0; s < NUM_SNAKES; s++)
+    for (int s = 0; s < numSnakes; s++)
     {
-        snakes[s].dir = RIGHT;
-        snakes[s].lastDir = RIGHT;
-        snakes[s].headX = width / 2;
-        snakes[s].headY = height / 2;
-        snakes[s].nTail = 2;
-        snakes[s].tailX[0] = snakes[s].headX - 1; snakes[s].tailY[0] = snakes[s].headY;
-        snakes[s].tailX[1] = snakes[s].headX - 2; snakes[s].tailY[1] = snakes[s].headY;
+        snakes[s].isAlive = true;
         snakes[s].score = 0;
+        snakes[s].nTail = 2;
+        snakes[s].headY = height / 2;
         snakes[s].lastTailX = -1;
         snakes[s].lastTailY = -1;
+        if (s == 0)
+        {
+            // Player 1 starts on the left, heading right; tail trails to the left.
+            snakes[s].dir = RIGHT;
+            snakes[s].lastDir = RIGHT;
+            snakes[s].headX = (numSnakes == 2) ? (width / 4) : (width / 2);
+            snakes[s].tailX[0] = snakes[s].headX - 1; snakes[s].tailY[0] = snakes[s].headY;
+            snakes[s].tailX[1] = snakes[s].headX - 2; snakes[s].tailY[1] = snakes[s].headY;
+        }
+        else
+        {
+            // Player 2 starts on the right, heading left; tail trails to the right.
+            snakes[s].dir = LEFT;
+            snakes[s].lastDir = LEFT;
+            snakes[s].headX = (3 * width) / 4;
+            snakes[s].tailX[0] = snakes[s].headX + 1; snakes[s].tailY[0] = snakes[s].headY;
+            snakes[s].tailX[1] = snakes[s].headX + 2; snakes[s].tailY[1] = snakes[s].headY;
+        }
     }
 
     fruitX = rand() % width;
@@ -670,7 +686,7 @@ void Setup()
     while (!validPos)
     {
         validPos = true;
-        for (int s = 0; s < NUM_SNAKES; s++)
+        for (int s = 0; s < numSnakes; s++)
         {
             if (fruitX == snakes[s].headX && fruitY == snakes[s].headY)
                 validPos = false;
@@ -733,7 +749,7 @@ void Draw()
     }
     ResetColor();
 
-    for (int s = 0; s < NUM_SNAKES; s++)
+    for (int s = 0; s < numSnakes; s++)
     {
         if (snakes[s].lastTailX != -1)
         {
@@ -742,8 +758,9 @@ void Draw()
             snakes[s].lastTailX = -1;
         }
     }
-    for (int s = 0; s < NUM_SNAKES; s++)
+    for (int s = 0; s < numSnakes; s++)
     {
+        if (!snakes[s].isAlive) continue;
         GotoXY(snakes[s].headX + 1, snakes[s].headY + 1);
         char headChar;
         if (snakes[s].dir == UP) headChar = '^';
@@ -751,15 +768,24 @@ void Draw()
         else if (snakes[s].dir == LEFT) headChar = '<';
         else if (snakes[s].dir == RIGHT) headChar = '>';
         else headChar = '@';
-        if (frameCount % 2 == 0) SetColor(GREEN, BLACK);
-        else if (isSlowTimeActive) SetColor(CYAN, BLACK);
-        else SetColor(YELLOW, BLACK);
+        if (s == 0)
+        {
+            if (frameCount % 2 == 0) SetColor(GREEN, BLACK);
+            else if (isSlowTimeActive) SetColor(CYAN, BLACK);
+            else SetColor(YELLOW, BLACK);
+        }
+        else
+        {
+            if (frameCount % 2 == 0) SetColor(CYAN, BLACK);
+            else SetColor(MAGENTA, BLACK);
+        }
         cout << headChar;
     }
     frameCount++;
-    for (int s = 0; s < NUM_SNAKES; s++)
+    for (int s = 0; s < numSnakes; s++)
     {
-        if (snakes[s].nTail > 0)
+        if (!snakes[s].isAlive || snakes[s].nTail <= 0) continue;
+        if (s == 0)
         {
             for (int i = 0; i < snakes[s].nTail; i++)
             {
@@ -783,6 +809,16 @@ void Draw()
             ResetColor();
             rainbowPhase = (rainbowPhase + 1) % 6;
         }
+        else
+        {
+            for (int i = 0; i < snakes[s].nTail; i++)
+            {
+                GotoXY(snakes[s].tailX[i] + 1, snakes[s].tailY[i] + 1);
+                SetColor(CYAN);
+                cout << "x";
+            }
+            ResetColor();
+        }
     }
     ResetColor();
     GotoXY(fruitX + 1, fruitY + 1); 
@@ -796,17 +832,32 @@ void Draw()
         cout << "♦"; 
         ResetColor(); 
     }
-    GotoXY(0, height + 2); 
-    SetColor(YELLOW);
-    cout << "Score: " << snakes[0].score << " | High Score: " << highScore;
-    cout << " | Speed Level: " << speedLevel;
-    if (isSlowTimeActive)
-    { 
-        SetColor(CYAN); 
-        cout << " | STATUS: SLOW TIME (" << slowTimeDuration / (1000 / originalGameSpeed) << "s)"; 
+    GotoXY(0, height + 2);
+    if (numSnakes == 1)
+    {
+        SetColor(YELLOW);
+        cout << "Score: " << snakes[0].score << " | High Score: " << highScore;
+        cout << " | Speed Level: " << speedLevel;
+        if (isSlowTimeActive)
+        {
+            SetColor(CYAN);
+            cout << " | STATUS: SLOW TIME (" << slowTimeDuration / (1000 / originalGameSpeed) << "s)";
+        }
+        SetColor(GREY);
+        cout << " | Music: " << (musicEnabled ? "ON" : "OFF") << "  ";
     }
-    SetColor(GREY); 
-    cout << " | Music: " << (musicEnabled ? "ON" : "OFF") << "  "; 
+    else
+    {
+        SetColor(GREEN);
+        cout << "P1: " << snakes[0].score << "  ";
+        SetColor(CYAN);
+        cout << "P2: " << snakes[1].score << "  ";
+        SetColor(YELLOW);
+        cout << "| High: " << highScore << " | Lvl " << speedLevel;
+        if (isSlowTimeActive) { SetColor(CYAN); cout << " | SLOW"; }
+        SetColor(GREY);
+        cout << " | Music: " << (musicEnabled ? "ON" : "OFF") << "  ";
+    }
     ResetColor();
 }
 
@@ -829,12 +880,13 @@ void Input()
         else
         {
             char lowerKey = tolower(key);
+            int wasdSnake = (numSnakes == 2) ? 1 : 0;  // WASD drives player 2 in 2P, player 1 otherwise
             switch (lowerKey)
             {
-            case 'w': if (snakes[0].lastDir != DOWN) snakes[0].dir = UP; break;
-            case 's': if (snakes[0].lastDir != UP) snakes[0].dir = DOWN; break;
-            case 'a': if (snakes[0].lastDir != RIGHT) snakes[0].dir = LEFT; break;
-            case 'd': if (snakes[0].lastDir != LEFT) snakes[0].dir = RIGHT; break;
+            case 'w': if (snakes[wasdSnake].lastDir != DOWN) snakes[wasdSnake].dir = UP; break;
+            case 's': if (snakes[wasdSnake].lastDir != UP) snakes[wasdSnake].dir = DOWN; break;
+            case 'a': if (snakes[wasdSnake].lastDir != RIGHT) snakes[wasdSnake].dir = LEFT; break;
+            case 'd': if (snakes[wasdSnake].lastDir != LEFT) snakes[wasdSnake].dir = RIGHT; break;
             case 'x': gameOver = true; break;
             case 'p': ShowPauseOverlay(); ClearScreen(); Draw(); break;
             case 'm': ToggleMusic(); if (musicEnabled) PlayGameMusic(); break;
@@ -857,7 +909,7 @@ void SpawnSpecialFruit()
             specialFruitY = rand() % height;
             if (specialFruitX == fruitX && specialFruitY == fruitY)
                 validPos = false;
-            for (int s = 0; s < NUM_SNAKES; s++)
+            for (int s = 0; s < numSnakes; s++)
             {
                 if (specialFruitX == snakes[s].headX && specialFruitY == snakes[s].headY)
                     validPos = false;
@@ -878,7 +930,8 @@ void ApplySlowTimeEffect()
 
 void Logic()
 {
-    for (int s = 0; s < NUM_SNAKES; s++) snakes[s].lastDir = snakes[s].dir;
+    for (int s = 0; s < numSnakes; s++)
+        if (snakes[s].isAlive) snakes[s].lastDir = snakes[s].dir;
 
     if (isSlowTimeActive)
     {
@@ -891,14 +944,15 @@ void Logic()
     }
 
     int topScore = 0;
-    for (int s = 0; s < NUM_SNAKES; s++)
+    for (int s = 0; s < numSnakes; s++)
         topScore = max(topScore, snakes[s].score);
     originalGameSpeed = max(120 - (topScore / 50) * 10, 10);
     if (!isSlowTimeActive) gameSpeed = originalGameSpeed;
 
-    // Advance every snake: shift its tail, then move its head.
-    for (int s = 0; s < NUM_SNAKES; s++)
+    // Advance every living snake: shift its tail, then move its head.
+    for (int s = 0; s < numSnakes; s++)
     {
+        if (!snakes[s].isAlive) continue;
         if (snakes[s].nTail > 0)
         {
             snakes[s].lastTailX = snakes[s].tailX[snakes[s].nTail - 1];
@@ -930,10 +984,10 @@ void Logic()
         }
     }
 
-    // Wall and self collision for every snake.
-    for (int s = 0; s < NUM_SNAKES; s++)
+    // Wall and self collision for every living snake.
+    for (int s = 0; s < numSnakes; s++)
     {
-        bool collided = false;
+        if (!snakes[s].isAlive) continue;
         if (borderWrap)
         {
             if (snakes[s].headX < 0) snakes[s].headX = width - 1;
@@ -944,30 +998,41 @@ void Logic()
         else
         {
             if (snakes[s].headX < 0 || snakes[s].headX >= width || snakes[s].headY < 0 || snakes[s].headY >= height)
-                collided = true;
+                snakes[s].isAlive = false;
         }
         for (int i = 0; i < snakes[s].nTail; i++)
         {
             if (snakes[s].tailX[i] == snakes[s].headX && snakes[s].tailY[i] == snakes[s].headY)
-                collided = true;
-        }
-        if (collided)
-        {
-            gameOver = true;
-            if (snakes[s].score > highScore)
-            {
-                highScorePlayerName = GetPlayerName();
-                highScore = snakes[s].score;
-                SaveHighScore();
-            }
+                snakes[s].isAlive = false;
         }
     }
 
-    // Fruit eating: the first snake on the fruit eats it.
-    bool fruitEaten = false;
-    for (int s = 0; s < NUM_SNAKES && !fruitEaten; s++)
+    // Snake-versus-snake collision (2-player only).
+    if (numSnakes == 2 && snakes[0].isAlive && snakes[1].isAlive)
     {
-        if (snakes[s].headX == fruitX && snakes[s].headY == fruitY)
+        if (snakes[0].headX == snakes[1].headX && snakes[0].headY == snakes[1].headY)
+        {
+            snakes[0].isAlive = false;
+            snakes[1].isAlive = false;
+        }
+        for (int i = 0; i < snakes[1].nTail; i++)
+            if (snakes[1].tailX[i] == snakes[0].headX && snakes[1].tailY[i] == snakes[0].headY)
+                snakes[0].isAlive = false;
+        for (int i = 0; i < snakes[0].nTail; i++)
+            if (snakes[0].tailX[i] == snakes[1].headX && snakes[0].tailY[i] == snakes[1].headY)
+                snakes[1].isAlive = false;
+    }
+
+    // The round ends as soon as any snake in play has died.
+    for (int s = 0; s < numSnakes; s++)
+        if (!snakes[s].isAlive) gameOver = true;
+    if (gameOver) return;
+
+    // Fruit eating: the first living snake on the fruit eats it.
+    bool fruitEaten = false;
+    for (int s = 0; s < numSnakes && !fruitEaten; s++)
+    {
+        if (snakes[s].isAlive && snakes[s].headX == fruitX && snakes[s].headY == fruitY)
         {
             snakes[s].score += 10;
             snakes[s].nTail++;
@@ -992,7 +1057,7 @@ void Logic()
             fruitY = rand() % height;
             if ((fruitX == specialFruitX && fruitY == specialFruitY) && isSpecialFruitOnScreen)
                 validPos = false;
-            for (int s = 0; s < NUM_SNAKES; s++)
+            for (int s = 0; s < numSnakes; s++)
             {
                 if (fruitX == snakes[s].headX && fruitY == snakes[s].headY) validPos = false;
                 for (int i = 0; i < snakes[s].nTail; i++)
@@ -1001,12 +1066,12 @@ void Logic()
         } while (!validPos);
     }
 
-    // Special fruit: any snake reaching it triggers slow time.
+    // Special fruit: any living snake reaching it triggers slow time.
     if (isSpecialFruitOnScreen)
     {
         bool specialEaten = false;
-        for (int s = 0; s < NUM_SNAKES; s++)
-            if (snakes[s].headX == specialFruitX && snakes[s].headY == specialFruitY) specialEaten = true;
+        for (int s = 0; s < numSnakes; s++)
+            if (snakes[s].isAlive && snakes[s].headX == specialFruitX && snakes[s].headY == specialFruitY) specialEaten = true;
         if (specialEaten)
         {
             isSpecialFruitOnScreen = false;
@@ -1028,7 +1093,8 @@ int main()
         int menuChoice = ShowMenu();
         switch (menuChoice)
         {
-        case 0: // Start Game
+        case 0: // 1 Player
+            numSnakes = 1;
             Setup();
             while (!gameOver)
             {
@@ -1039,7 +1105,7 @@ int main()
             }
             StopGameMusic();
             PlayMenuMusic();
-            
+
             ClearScreen();
             SetColor(RED);
             GotoXY(width / 2 - 5, height / 2 - 2);
@@ -1047,30 +1113,90 @@ int main()
             SetColor(YELLOW);
             GotoXY(width / 2 - 8, height / 2);
             cout << "Final Score: " << snakes[0].score;
-            if (snakes[0].score == highScore && snakes[0].score > 0)
+            if (snakes[0].score > highScore && snakes[0].score > 0)
             {
-                SetColor(GREEN);
-                GotoXY(width / 2 - 12, height / 2 + 1);
-                cout << "NEW HIGH SCORE: " << highScore;
-                GotoXY(width / 2 - 12, height / 2 + 2);
-                cout << "Player: " << highScorePlayerName;
+                highScore = snakes[0].score;
+                highScorePlayerName = GetPlayerName();
+                SaveHighScore();
             }
             else
             {
                 SetColor(CYAN);
                 GotoXY(width / 2 - 12, height / 2 + 1);
                 cout << "Current High Score: " << highScore;
+                SetColor(GREY);
+                GotoXY(width / 2 - 12, height / 2 + 3);
+                cout << "Press any key to continue...";
+                ResetColor();
+                getch();
             }
-            SetColor(GREY);
-            GotoXY(width / 2 - 12, height / 2 + 3);
-            cout << "Press any key to continue...";
-            ResetColor();
-            getch();
             break;
-        case 1: ShowHelpPage(); break;
-        case 2: ShowSettingsPage(); break;
-        case 3: ShowHighScorePage(); break;
-        case 4: StopAllMusic(); return 0;
+        case 1: // 2 Player
+        {
+            numSnakes = 2;
+            Setup();
+            while (!gameOver)
+            {
+                Input();
+                Logic();
+                Draw();
+                Sleep(gameSpeed);
+            }
+            StopGameMusic();
+            PlayMenuMusic();
+
+            ClearScreen();
+            SetColor(YELLOW);
+            GotoXY(width / 2 - 10, height / 2 - 4);
+            cout << "====================";
+            GotoXY(width / 2 - 10, height / 2 - 3);
+            if (snakes[0].isAlive && !snakes[1].isAlive)
+            {
+                SetColor(GREEN);
+                cout << "  PLAYER 2 LOST!   ";
+            }
+            else if (snakes[1].isAlive && !snakes[0].isAlive)
+            {
+                SetColor(CYAN);
+                cout << "  PLAYER 1 LOST!   ";
+            }
+            else
+            {
+                SetColor(YELLOW);
+                cout << "    IT'S A DRAW!   ";
+            }
+            SetColor(YELLOW);
+            GotoXY(width / 2 - 10, height / 2 - 2);
+            cout << "====================";
+
+            SetColor(GREEN);
+            GotoXY(width / 2 - 10, height / 2);
+            cout << "Player 1 Score: " << snakes[0].score;
+            SetColor(CYAN);
+            GotoXY(width / 2 - 10, height / 2 + 1);
+            cout << "Player 2 Score: " << snakes[1].score;
+
+            int maxScore = max(snakes[0].score, snakes[1].score);
+            if (maxScore > highScore && maxScore > 0)
+            {
+                highScore = maxScore;
+                highScorePlayerName = GetPlayerName();
+                SaveHighScore();
+            }
+            else
+            {
+                SetColor(GREY);
+                GotoXY(width / 2 - 12, height / 2 + 3);
+                cout << "Press any key to continue...";
+                ResetColor();
+                getch();
+            }
+            break;
+        }
+        case 2: ShowHelpPage(); break;
+        case 3: ShowSettingsPage(); break;
+        case 4: ShowHighScorePage(); break;
+        case 5: StopAllMusic(); return 0;
         }
     }
     return 0;
