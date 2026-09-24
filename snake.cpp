@@ -58,15 +58,15 @@ void ShowPauseOverlay();
 void Input();
 void Logic();
 void Setup();
-void LoadHighScore();
-void SaveHighScore();
+void LoadHighScore(const string& filename = "");
+void SaveHighScore(const string& filename = "");
 void ApplySlowTimeEffect();
 void SpawnSpecialFruit();
 void ShowSettingsPage();
 void ShowHighScorePage();
 void ShowHelpPage();
 int ShowMenu();
-string GetPlayerName();
+string GetPlayerName(int (*charSupplier)() = nullptr);
 
 // MUSIC VARIABLES
 bool musicEnabled = true;
@@ -179,10 +179,15 @@ eDirection dir;
 eDirection lastDir;
 int lastTailX, lastTailY;
 
+// SEAM: Injectable input character provider and high score filename
+int (*inputCharProvider)() = _getch;
+string highScoreFilename = "highscore.txt";
+
 // FILE I/O FUNCTIONS
-void LoadHighScore()
+void LoadHighScore(const string& filename)
 {
-    ifstream fileIn("highscore.txt");
+    string target = filename.empty() ? highScoreFilename : filename;
+    ifstream fileIn(target.c_str());
     if (fileIn.is_open())
     {
         fileIn >> highScore;
@@ -199,9 +204,10 @@ void LoadHighScore()
     }
 }
 
-void SaveHighScore()
+void SaveHighScore(const string& filename)
 {
-    ofstream fileOut("highscore.txt");
+    string target = filename.empty() ? highScoreFilename : filename;
+    ofstream fileOut(target.c_str());
     if (fileOut.is_open())
     {
         fileOut << highScore << endl;
@@ -211,8 +217,9 @@ void SaveHighScore()
 }
 
 // GET PLAYER NAME FUNCTION
-string GetPlayerName()
+string GetPlayerName(int (*charSupplier)())
 {
+    int (*readChar)() = (charSupplier != nullptr) ? charSupplier : inputCharProvider;
     ClearScreen();
     SetColor(YELLOW);
     GotoXY(width / 2 - 12, 8);
@@ -244,7 +251,7 @@ string GetPlayerName()
     
     while (true)
     {
-        ch = _getch();
+        ch = (char)readChar();
         
         if (ch == 13 && name.length() > 0) // Enter key
         {

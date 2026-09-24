@@ -1,2 +1,8 @@
 .vscode
 snake.exe
+tests.exe
+*.o
+*.gcda
+*.gcno
+*.gcov
+output/
